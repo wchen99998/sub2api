@@ -82,6 +82,7 @@ type Config struct {
 	Gemini                  GeminiConfig                  `mapstructure:"gemini"`
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
+	Otel                    OtelConfig                    `mapstructure:"otel"`
 }
 
 type LogConfig struct {
@@ -162,6 +163,14 @@ type IdempotencyConfig struct {
 	CleanupIntervalSeconds int `mapstructure:"cleanup_interval_seconds"`
 	// CleanupBatchSize 每次清理的最大记录数。
 	CleanupBatchSize int `mapstructure:"cleanup_batch_size"`
+}
+
+type OtelConfig struct {
+	Enabled         bool    `mapstructure:"enabled"`
+	ServiceName     string  `mapstructure:"service_name"`
+	Endpoint        string  `mapstructure:"endpoint"`
+	TraceSampleRate float64 `mapstructure:"trace_sample_rate"`
+	MetricsPort     int     `mapstructure:"metrics_port"`
 }
 
 type LinuxDoConnectConfig struct {
@@ -731,44 +740,17 @@ func (r *RedisConfig) Address() string {
 }
 
 type OpsConfig struct {
-	// Enabled controls whether ops features should run.
-	//
-	// NOTE: vNext still has a DB-backed feature flag (ops_monitoring_enabled) for runtime on/off.
-	// This config flag is the "hard switch" for deployments that want to disable ops completely.
+	// Enabled is kept for backwards compatibility with existing config files.
+	// Ops error logging is always available.
 	Enabled bool `mapstructure:"enabled"`
 
-	// UsePreaggregatedTables prefers ops_metrics_hourly/daily for long-window dashboard queries.
-	UsePreaggregatedTables bool `mapstructure:"use_preaggregated_tables"`
-
-	// Cleanup controls periodic deletion of old ops data to prevent unbounded growth.
-	Cleanup OpsCleanupConfig `mapstructure:"cleanup"`
-
-	// MetricsCollectorCache controls Redis caching for expensive per-window collector queries.
-	MetricsCollectorCache OpsMetricsCollectorCacheConfig `mapstructure:"metrics_collector_cache"`
-
-	// Pre-aggregation configuration.
-	Aggregation OpsAggregationConfig `mapstructure:"aggregation"`
-}
-
-type OpsCleanupConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	Schedule string `mapstructure:"schedule"`
-
-	// Retention days (0 disables that cleanup target).
-	//
-	// vNext requirement: default 30 days across ops datasets.
-	ErrorLogRetentionDays      int `mapstructure:"error_log_retention_days"`
-	MinuteMetricsRetentionDays int `mapstructure:"minute_metrics_retention_days"`
-	HourlyMetricsRetentionDays int `mapstructure:"hourly_metrics_retention_days"`
-}
-
-type OpsAggregationConfig struct {
-	Enabled bool `mapstructure:"enabled"`
-}
-
-type OpsMetricsCollectorCacheConfig struct {
-	Enabled bool          `mapstructure:"enabled"`
-	TTL     time.Duration `mapstructure:"ttl"`
+	// Error log skip rules — control which errors are silently dropped
+	// from the ops_error_logs table. All configurable via env/YAML.
+	IgnoreCountTokensErrors         bool `mapstructure:"ignore_count_tokens_errors"`
+	IgnoreContextCanceled           bool `mapstructure:"ignore_context_canceled"`
+	IgnoreNoAvailableAccounts       bool `mapstructure:"ignore_no_available_accounts"`
+	IgnoreInvalidAPIKeyErrors       bool `mapstructure:"ignore_invalid_api_key_errors"`
+	IgnoreInsufficientBalanceErrors bool `mapstructure:"ignore_insufficient_balance_errors"`
 }
 
 type JWTConfig struct {
@@ -900,19 +882,12 @@ func NormalizeRunMode(value string) string {
 	}
 }
 
-// Load 读取并校验完整配置（要求 jwt.secret 已显式提供）。
+// Load reads and validates the application configuration.
 func Load() (*Config, error) {
-	return load(false)
+	return load()
 }
 
-// LoadForBootstrap 读取启动阶段配置。
-//
-// 启动阶段允许 jwt.secret 先留空，后续由数据库初始化流程补齐并再次完整校验。
-func LoadForBootstrap() (*Config, error) {
-	return load(true)
-}
-
-func load(allowMissingJWTSecret bool) (*Config, error) {
+func load() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 
@@ -994,32 +969,11 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		cfg.Gateway.UserMessageQueue.Mode = ""
 	}
 
-	// Auto-generate TOTP encryption key if not set (32 bytes = 64 hex chars for AES-256)
 	cfg.Totp.EncryptionKey = strings.TrimSpace(cfg.Totp.EncryptionKey)
-	if cfg.Totp.EncryptionKey == "" {
-		key, err := generateJWTSecret(32) // Reuse the same random generation function
-		if err != nil {
-			return nil, fmt.Errorf("generate totp encryption key error: %w", err)
-		}
-		cfg.Totp.EncryptionKey = key
-		cfg.Totp.EncryptionKeyConfigured = false
-		slog.Warn("TOTP encryption key auto-generated. Consider setting a fixed key for production.")
-	} else {
-		cfg.Totp.EncryptionKeyConfigured = true
-	}
-
-	originalJWTSecret := cfg.JWT.Secret
-	if allowMissingJWTSecret && originalJWTSecret == "" {
-		// 启动阶段允许先无 JWT 密钥，后续在数据库初始化后补齐。
-		cfg.JWT.Secret = strings.Repeat("0", 32)
-	}
+	cfg.Totp.EncryptionKeyConfigured = cfg.Totp.EncryptionKey != ""
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("validate config error: %w", err)
-	}
-
-	if allowMissingJWTSecret && originalJWTSecret == "" {
-		cfg.JWT.Secret = ""
 	}
 
 	if !cfg.Security.URLAllowlist.Enabled {
@@ -1162,19 +1116,13 @@ func setDefaults() {
 	viper.SetDefault("redis.min_idle_conns", 128)
 	viper.SetDefault("redis.enable_tls", false)
 
-	// Ops (vNext)
+	// Ops
 	viper.SetDefault("ops.enabled", true)
-	viper.SetDefault("ops.use_preaggregated_tables", true)
-	viper.SetDefault("ops.cleanup.enabled", true)
-	viper.SetDefault("ops.cleanup.schedule", "0 2 * * *")
-	// Retention days: vNext defaults to 30 days across ops datasets.
-	viper.SetDefault("ops.cleanup.error_log_retention_days", 30)
-	viper.SetDefault("ops.cleanup.minute_metrics_retention_days", 30)
-	viper.SetDefault("ops.cleanup.hourly_metrics_retention_days", 30)
-	viper.SetDefault("ops.aggregation.enabled", true)
-	viper.SetDefault("ops.metrics_collector_cache.enabled", true)
-	// TTL should be slightly larger than collection interval (1m) to maximize cross-replica cache hits.
-	viper.SetDefault("ops.metrics_collector_cache.ttl", 65*time.Second)
+	viper.SetDefault("ops.ignore_count_tokens_errors", true)
+	viper.SetDefault("ops.ignore_context_canceled", true)
+	viper.SetDefault("ops.ignore_no_available_accounts", false)
+	viper.SetDefault("ops.ignore_invalid_api_key_errors", false)
+	viper.SetDefault("ops.ignore_insufficient_balance_errors", false)
 
 	// JWT
 	viper.SetDefault("jwt.secret", "")
@@ -1397,6 +1345,13 @@ func setDefaults() {
 	viper.SetDefault("subscription_maintenance.worker_count", 2)
 	viper.SetDefault("subscription_maintenance.queue_size", 1024)
 
+	// OpenTelemetry
+	viper.SetDefault("otel.enabled", false)
+	viper.SetDefault("otel.service_name", "sub2api")
+	viper.SetDefault("otel.endpoint", "http://alloy.monitoring.svc:4318")
+	viper.SetDefault("otel.trace_sample_rate", 0.1)
+	viper.SetDefault("otel.metrics_port", 9090)
+
 }
 
 func (c *Config) Validate() error {
@@ -1408,6 +1363,17 @@ func (c *Config) Validate() error {
 	// 选择 bytes 而不是 rune 计数，确保二进制/随机串的长度语义更接近“熵”而非“字符数”。
 	if len([]byte(jwtSecret)) < 32 {
 		return fmt.Errorf("jwt.secret must be at least 32 bytes")
+	}
+	totpKey := strings.TrimSpace(c.Totp.EncryptionKey)
+	if totpKey == "" {
+		return fmt.Errorf("totp.encryption_key is required")
+	}
+	totpKeyBytes, err := hex.DecodeString(totpKey)
+	if err != nil {
+		return fmt.Errorf("totp.encryption_key must be valid hex: %w", err)
+	}
+	if len(totpKeyBytes) != 32 {
+		return fmt.Errorf("totp.encryption_key must be 32 bytes (64 hex chars)")
 	}
 	switch c.Log.Level {
 	case "debug", "info", "warn", "error":
@@ -2032,21 +1998,6 @@ func (c *Config) Validate() error {
 		c.Gateway.Scheduling.OutboxLagRebuildSeconds > 0 &&
 		c.Gateway.Scheduling.OutboxLagRebuildSeconds < c.Gateway.Scheduling.OutboxLagWarnSeconds {
 		return fmt.Errorf("gateway.scheduling.outbox_lag_rebuild_seconds must be >= outbox_lag_warn_seconds")
-	}
-	if c.Ops.MetricsCollectorCache.TTL < 0 {
-		return fmt.Errorf("ops.metrics_collector_cache.ttl must be non-negative")
-	}
-	if c.Ops.Cleanup.ErrorLogRetentionDays < 0 {
-		return fmt.Errorf("ops.cleanup.error_log_retention_days must be non-negative")
-	}
-	if c.Ops.Cleanup.MinuteMetricsRetentionDays < 0 {
-		return fmt.Errorf("ops.cleanup.minute_metrics_retention_days must be non-negative")
-	}
-	if c.Ops.Cleanup.HourlyMetricsRetentionDays < 0 {
-		return fmt.Errorf("ops.cleanup.hourly_metrics_retention_days must be non-negative")
-	}
-	if c.Ops.Cleanup.Enabled && strings.TrimSpace(c.Ops.Cleanup.Schedule) == "" {
-		return fmt.Errorf("ops.cleanup.schedule is required when ops.cleanup.enabled=true")
 	}
 	if c.Concurrency.PingInterval < 5 || c.Concurrency.PingInterval > 30 {
 		return fmt.Errorf("concurrency.ping_interval must be between 5-30 seconds")

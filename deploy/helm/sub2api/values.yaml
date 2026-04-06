@@ -3,7 +3,7 @@ replicaCount: 1
 
 image:
   # -- Container image repository
-  repository: ghcr.io/wchen99998/sub2api
+  repository: ghcr.io/wchen99998/robust2api
   # -- Image tag (defaults to Chart appVersion)
   tag: ""
   # -- Image pull policy
@@ -80,14 +80,11 @@ secrets:
 extraSecretEnv: {}
 
 # =============================================================================
-# Persistence (/app/data volume)
+# Bootstrap Job
 # =============================================================================
-persistence:
-  enabled: true
-  size: 1Gi
-  storageClass: ""
-  accessModes:
-    - ReadWriteOnce
+bootstrap:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 300
 
 # =============================================================================
 # Service
@@ -101,23 +98,35 @@ service:
 # =============================================================================
 ingress:
   enabled: true
-  className: ""
+  className: "nginx"
+  # Convention: <service>-<namespace>.<domain_suffix>
+  # Example: api-sub2api.do-prod.wuhao99.com
   host: sub2api.local
-  annotations: {}
+  # Cloudflare proxy mode (set to "false" for DNS-only / grey-cloud)
+  cloudflareProxied: "true"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
   tls:
     enabled: false
     secretName: ""
+  # Extra hosts (custom domains pointing to this service).
+  # ExternalDNS only manages domains within its configured zone filter.
+  # Example:
+  #   extraHosts:
+  #     - host: api.mycorp.com
+  extraHosts: []
 
 # =============================================================================
 # Resources
 # =============================================================================
 resources:
   requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: 500m
+    cpu: 250m
     memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
 
 # =============================================================================
 # Scheduling
@@ -136,8 +145,15 @@ postgresql:
     password: ""
     database: sub2api
   primary:
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
     persistence:
-      size: 1Gi
+      size: 5Gi
 
 # -- External database (used when postgresql.enabled=false)
 externalDatabase:
@@ -158,6 +174,13 @@ redis:
     password: ""
   architecture: standalone
   master:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
     persistence:
       size: 1Gi
 
@@ -167,3 +190,16 @@ externalRedis:
   port: 6379
   password: ""
   enableTLS: false
+
+## Observability (OpenTelemetry + Prometheus metrics)
+observability:
+  enabled: false
+  otel:
+    serviceName: "sub2api"
+    endpoint: "monitoring-alloy.monitoring.svc:4317"
+    traceSampleRate: "0.1"
+    metricsPort: 9090
+  serviceMonitor:
+    enabled: false
+    interval: 15s
+    labels: {}

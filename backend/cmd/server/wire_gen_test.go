@@ -46,17 +46,12 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, cfg)
 	idempotencyCleanupSvc := service.NewIdempotencyCleanupService(nil, cfg)
 	schedulerSnapshotSvc := service.NewSchedulerSnapshotService(nil, nil, nil, nil, cfg)
-	opsSystemLogSinkSvc := service.NewOpsSystemLogSink(nil)
 
 	cleanup := provideCleanup(
 		nil, // entClient
 		nil, // redis
-		&service.OpsMetricsCollector{},
-		&service.OpsAggregationService{},
-		&service.OpsAlertEvaluatorService{},
-		&service.OpsCleanupService{},
-		&service.OpsScheduledReportService{},
-		opsSystemLogSinkSvc,
+		nil, // otelProvider
+		nil, // metricsServer
 		schedulerSnapshotSvc,
 		tokenRefreshSvc,
 		accountExpirySvc,

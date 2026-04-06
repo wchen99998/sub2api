@@ -12,7 +12,7 @@
 
 **AI API Gateway Platform for Subscription Quota Distribution**
 
-English | [中文](README_CN.md) | [日本語](README_JA.md)
+English
 
 </div>
 
@@ -42,6 +42,7 @@ Sub2API is an AI API gateway platform designed to distribute and manage API quot
 - **Smart Scheduling** - Intelligent account selection with sticky sessions
 - **Concurrency Control** - Per-user and per-account concurrency limits
 - **Rate Limiting** - Configurable request and token rate limits
+- **Observability** - Optional LGTM stack (Prometheus, Grafana, Tempo, Loki) with OpenTelemetry tracing and metrics
 - **Admin Dashboard** - Web interface for monitoring and management
 - **External System Integration** - Embed external systems (e.g. payment, ticketing) via iframe to extend the admin dashboard
 
@@ -88,6 +89,7 @@ Community projects that extend or integrate with Sub2API:
 | Frontend | Vue 3.4+, Vite 5+, TailwindCSS |
 | Database | PostgreSQL 15+ |
 | Cache/Queue | Redis 7+ |
+| Observability | OpenTelemetry, Prometheus, Grafana, Tempo, Loki |
 
 ---
 
@@ -338,7 +340,15 @@ rm -rf data/ postgres_data/ redis_data/
 
 ---
 
-### Method 3: Build from Source
+### Method 3: Kubernetes (Terraform + Helm)
+
+Deploy on DigitalOcean Kubernetes with Terraform for infrastructure provisioning and Helm for application deployment. Includes autoscaling, ingress-nginx, cert-manager, Cloudflare DNS, and optional managed PostgreSQL.
+
+See **[DEPLOY.md](DEPLOY.md)** for the full guide.
+
+---
+
+### Method 4: Build from Source
 
 Build and run from source code for development or customization.
 
@@ -560,11 +570,20 @@ sub2api/
 │       ├── views/            # Page components
 │       └── components/       # Reusable components
 │
-└── deploy/                   # Deployment files
-    ├── docker-compose.yml    # Docker Compose configuration
-    ├── .env.example          # Environment variables for Docker Compose
-    ├── config.example.yaml   # Full config file for binary deployment
-    └── install.sh            # One-click installation script
+├── deploy/                   # Deployment files
+│   ├── docker-compose.yml    # Docker Compose configuration
+│   ├── .env.example          # Environment variables for Docker Compose
+│   ├── config.example.yaml   # Full config file for binary deployment
+│   ├── helm/sub2api/         # Helm chart for Kubernetes deployment
+│   └── install.sh            # One-click installation script
+│
+└── infra/                    # Infrastructure as Code (Terraform)
+    ├── modules/              # Reusable Terraform modules
+    │   ├── doks/             # DigitalOcean Kubernetes cluster
+    │   ├── kubernetes/       # In-cluster bootstrap (ingress, cert-manager)
+    │   ├── database/         # Optional managed PostgreSQL
+    │   └── dns/              # Cloudflare DNS
+    └── production/           # Production environment root
 ```
 
 ## Disclaimer

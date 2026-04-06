@@ -5,7 +5,6 @@ metadata:
   labels:
     {{- include "sub2api.labels" . | nindent 4 }}
 data:
-  AUTO_SETUP: "true"
   SERVER_HOST: "0.0.0.0"
   SERVER_PORT: {{ .Values.config.serverPort | quote }}
   SERVER_MODE: {{ .Values.config.serverMode | quote }}
@@ -40,4 +39,11 @@ data:
   {{- end }}
   {{- range $key, $value := .Values.extraEnv }}
   {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- if ((.Values.observability).enabled) }}
+  OTEL_ENABLED: "true"
+  OTEL_SERVICE_NAME: {{ .Values.observability.otel.serviceName | quote }}
+  OTEL_ENDPOINT: {{ .Values.observability.otel.endpoint | quote }}
+  OTEL_TRACE_SAMPLE_RATE: {{ .Values.observability.otel.traceSampleRate | quote }}
+  OTEL_METRICS_PORT: {{ .Values.observability.otel.metricsPort | quote }}
   {{- end }}

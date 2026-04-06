@@ -2,13 +2,11 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/google/wire"
-	"github.com/redis/go-redis/v9"
 )
 
 // BuildInfo contains build information
@@ -218,66 +216,6 @@ func ProvideRateLimitService(
 	return svc
 }
 
-// ProvideOpsMetricsCollector creates and starts OpsMetricsCollector.
-func ProvideOpsMetricsCollector(
-	opsRepo OpsRepository,
-	settingRepo SettingRepository,
-	accountRepo AccountRepository,
-	concurrencyService *ConcurrencyService,
-	db *sql.DB,
-	redisClient *redis.Client,
-	cfg *config.Config,
-) *OpsMetricsCollector {
-	collector := NewOpsMetricsCollector(opsRepo, settingRepo, accountRepo, concurrencyService, db, redisClient, cfg)
-	collector.Start()
-	return collector
-}
-
-// ProvideOpsAggregationService creates and starts OpsAggregationService (hourly/daily pre-aggregation).
-func ProvideOpsAggregationService(
-	opsRepo OpsRepository,
-	settingRepo SettingRepository,
-	db *sql.DB,
-	redisClient *redis.Client,
-	cfg *config.Config,
-) *OpsAggregationService {
-	svc := NewOpsAggregationService(opsRepo, settingRepo, db, redisClient, cfg)
-	svc.Start()
-	return svc
-}
-
-// ProvideOpsAlertEvaluatorService creates and starts OpsAlertEvaluatorService.
-func ProvideOpsAlertEvaluatorService(
-	opsService *OpsService,
-	opsRepo OpsRepository,
-	emailService *EmailService,
-	redisClient *redis.Client,
-	cfg *config.Config,
-) *OpsAlertEvaluatorService {
-	svc := NewOpsAlertEvaluatorService(opsService, opsRepo, emailService, redisClient, cfg)
-	svc.Start()
-	return svc
-}
-
-// ProvideOpsCleanupService creates and starts OpsCleanupService (cron scheduled).
-func ProvideOpsCleanupService(
-	opsRepo OpsRepository,
-	db *sql.DB,
-	redisClient *redis.Client,
-	cfg *config.Config,
-) *OpsCleanupService {
-	svc := NewOpsCleanupService(opsRepo, db, redisClient, cfg)
-	svc.Start()
-	return svc
-}
-
-func ProvideOpsSystemLogSink(opsRepo OpsRepository) *OpsSystemLogSink {
-	sink := NewOpsSystemLogSink(opsRepo)
-	sink.Start()
-	logger.SetSink(sink)
-	return sink
-}
-
 func buildIdempotencyConfig(cfg *config.Config) IdempotencyConfig {
 	idempotencyCfg := DefaultIdempotencyConfig()
 	if cfg != nil {
@@ -334,19 +272,6 @@ func ProvideScheduledTestRunnerService(
 	cfg *config.Config,
 ) *ScheduledTestRunnerService {
 	svc := NewScheduledTestRunnerService(planRepo, scheduledSvc, accountTestSvc, rateLimitSvc, cfg)
-	svc.Start()
-	return svc
-}
-
-// ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
-func ProvideOpsScheduledReportService(
-	opsService *OpsService,
-	userService *UserService,
-	emailService *EmailService,
-	redisClient *redis.Client,
-	cfg *config.Config,
-) *OpsScheduledReportService {
-	svc := NewOpsScheduledReportService(opsService, userService, emailService, redisClient, cfg)
 	svc.Start()
 	return svc
 }
@@ -419,13 +344,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSettingService,
 	NewDataManagementService,
 	ProvideBackupService,
-	ProvideOpsSystemLogSink,
 	NewOpsService,
-	ProvideOpsMetricsCollector,
-	ProvideOpsAggregationService,
-	ProvideOpsAlertEvaluatorService,
-	ProvideOpsCleanupService,
-	ProvideOpsScheduledReportService,
 	NewEmailService,
 	ProvideEmailQueueService,
 	NewTurnstileService,

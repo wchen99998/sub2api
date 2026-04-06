@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"log"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 const frameSrcRefreshTimeout = 5 * time.Second
@@ -51,8 +53,22 @@ func SetupRouter(
 	refreshFrameOrigins() // 启动时初始化
 
 	// 应用中间件
+	// OTel middleware MUST run before logging middleware so that trace_id/span_id
+	// are available in structured log output for Loki→Tempo correlation.
+	if cfg.Otel.Enabled {
+		r.Use(otelgin.Middleware("sub2api",
+			otelgin.WithFilter(func(r *http.Request) bool {
+				p := r.URL.Path
+				return p != "/health" && p != "/setup/status"
+			}),
+		))
+	}
 	r.Use(middleware2.RequestLogger())
 	r.Use(middleware2.Logger())
+	if cfg.Otel.Enabled {
+		r.Use(middleware2.TraceIDHeader())
+		r.Use(middleware2.RequestMetrics())
+	}
 	r.Use(middleware2.CORS(cfg.CORS))
 	r.Use(middleware2.SecurityHeaders(cfg.Security.CSP, func() []string {
 		if p := cachedFrameOrigins.Load(); p != nil {

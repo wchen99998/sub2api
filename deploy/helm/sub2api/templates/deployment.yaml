@@ -33,6 +33,11 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            {{- if ((.Values.observability).enabled) }}
+            - name: metrics
+              containerPort: {{ .Values.observability.otel.metricsPort }}
+              protocol: TCP
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "sub2api.fullname" . }}
@@ -61,17 +66,6 @@ spec:
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
-          {{- if .Values.persistence.enabled }}
-          volumeMounts:
-            - name: data
-              mountPath: /app/data
-          {{- end }}
-      {{- if .Values.persistence.enabled }}
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: {{ include "sub2api.fullname" . }}
-      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

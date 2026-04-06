@@ -115,7 +115,6 @@ backend/.installed
 # 其他
 # ===================
 tests
-CLAUDE.md
 .claude
 scripts
 .code-review-state
@@ -133,3 +132,21 @@ frontend/coverage/
 aicodex
 output/
 
+# ===================
+# Helm
+# ===================
+**/charts/*.tgz
+
+# ===================
+# Terraform
+# ===================
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

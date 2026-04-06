@@ -12,8 +12,6 @@ type PlatformConcurrencyInfo struct {
 }
 
 // GroupConcurrencyInfo aggregates concurrency usage by group.
-//
-// Note: one account can belong to multiple groups; group totals are therefore not additive across groups.
 type GroupConcurrencyInfo struct {
 	GroupID        int64   `json:"group_id"`
 	GroupName      string  `json:"group_name"`
@@ -90,3 +88,4 @@ type AccountAvailability struct {
 	ErrorMessage           string     `json:"error_message"`
 	TempUnschedulableUntil *time.Time `json:"temp_unschedulable_until,omitempty"`
 }
+

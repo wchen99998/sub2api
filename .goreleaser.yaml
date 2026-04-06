@@ -17,19 +17,28 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      - windows
-      - darwin
     goarch:
       - amd64
       - arm64
-    ignore:
-      - goos: windows
-        goarch: arm64
     ldflags:
       - -s -w
       - -X main.Commit={{.Commit}}
       - -X main.Date={{.Date}}
       - -X main.BuildType=release
+
+  - id: sub2api-bootstrap
+    dir: backend
+    main: ./cmd/bootstrap
+    binary: sub2api-bootstrap
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
 
 archives:
   - id: default
@@ -37,10 +46,6 @@ archives:
       - tar.gz
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
-    format_overrides:
-      - goos: windows
-        formats:
-          - zip
     files:
       - LICENSE*
       - README*
@@ -54,22 +59,55 @@ changelog:
   # 禁用自动 changelog，完全使用 tag 消息
   disable: true
 
-# Docker images (v2 - unified multi-arch build)
-dockers_v2:
-  - images:
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/sub2api"
-    tags:
-      - "{{ .Version }}"
-      - "latest"
-      - "{{ .Major }}.{{ .Minor }}"
-      - "{{ .Major }}"
+# Docker images — one per arch, no QEMU needed (Go cross-compiles natively)
+dockers:
+  - id: amd64
+    ids: [sub2api, sub2api-bootstrap]
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
     dockerfile: Dockerfile.goreleaser
     extra_files:
       - deploy/docker-entrypoint.sh
-    labels:
-      "org.opencontainers.image.version": "{{ .Version }}"
-      "org.opencontainers.image.revision": "{{ .Commit }}"
-      "org.opencontainers.image.source": "https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
+    build_flag_templates:
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
+
+  - id: arm64
+    ids: [sub2api, sub2api-bootstrap]
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
+    dockerfile: Dockerfile.goreleaser
+    extra_files:
+      - deploy/docker-entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
+
+# Combine per-arch images into a multi-arch manifest
+docker_manifests:
+  - name_template: "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:latest"
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Major }}.{{ .Minor }}"
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Major }}"
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
 
 release:
   github:
@@ -92,7 +130,7 @@ release:
 
     **Docker:**
     ```bash
-    docker pull ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/sub2api:{{ .Version }}
+    docker pull ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}
     ```
 
     **One-line install (Linux):**

@@ -493,14 +493,6 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	updates[SettingKeyEnableIdentityPatch] = strconv.FormatBool(settings.EnableIdentityPatch)
 	updates[SettingKeyIdentityPatchPrompt] = settings.IdentityPatchPrompt
 
-	// Ops monitoring (vNext)
-	updates[SettingKeyOpsMonitoringEnabled] = strconv.FormatBool(settings.OpsMonitoringEnabled)
-	updates[SettingKeyOpsRealtimeMonitoringEnabled] = strconv.FormatBool(settings.OpsRealtimeMonitoringEnabled)
-	updates[SettingKeyOpsQueryModeDefault] = string(ParseOpsQueryMode(settings.OpsQueryModeDefault))
-	if settings.OpsMetricsIntervalSeconds > 0 {
-		updates[SettingKeyOpsMetricsIntervalSeconds] = strconv.Itoa(settings.OpsMetricsIntervalSeconds)
-	}
-
 	// Claude Code version check
 	updates[SettingKeyMinClaudeCodeVersion] = settings.MinClaudeCodeVersion
 	updates[SettingKeyMaxClaudeCodeVersion] = settings.MaxClaudeCodeVersion
@@ -835,11 +827,6 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyIdentityPatchPrompt: "",
 
 		// Ops monitoring defaults (vNext)
-		SettingKeyOpsMonitoringEnabled:         "true",
-		SettingKeyOpsRealtimeMonitoringEnabled: "true",
-		SettingKeyOpsQueryModeDefault:          "auto",
-		SettingKeyOpsMetricsIntervalSeconds:    "60",
-
 		// Claude Code version check (default: empty = disabled)
 		SettingKeyMinClaudeCodeVersion: "",
 		SettingKeyMaxClaudeCodeVersion: "",
@@ -959,23 +946,6 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 	result.IdentityPatchPrompt = settings[SettingKeyIdentityPatchPrompt]
 
-	// Ops monitoring settings (default: enabled, fail-open)
-	result.OpsMonitoringEnabled = !isFalseSettingValue(settings[SettingKeyOpsMonitoringEnabled])
-	result.OpsRealtimeMonitoringEnabled = !isFalseSettingValue(settings[SettingKeyOpsRealtimeMonitoringEnabled])
-	result.OpsQueryModeDefault = string(ParseOpsQueryMode(settings[SettingKeyOpsQueryModeDefault]))
-	result.OpsMetricsIntervalSeconds = 60
-	if raw := strings.TrimSpace(settings[SettingKeyOpsMetricsIntervalSeconds]); raw != "" {
-		if v, err := strconv.Atoi(raw); err == nil {
-			if v < 60 {
-				v = 60
-			}
-			if v > 3600 {
-				v = 3600
-			}
-			result.OpsMetricsIntervalSeconds = v
-		}
-	}
-
 	// Claude Code version check
 	result.MinClaudeCodeVersion = settings[SettingKeyMinClaudeCodeVersion]
 	result.MaxClaudeCodeVersion = settings[SettingKeyMaxClaudeCodeVersion]
@@ -992,15 +962,6 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.EnableMetadataPassthrough = settings[SettingKeyEnableMetadataPassthrough] == "true"
 
 	return result
-}
-
-func isFalseSettingValue(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "false", "0", "off", "disabled":
-		return true
-	default:
-		return false
-	}
 }
 
 func parseDefaultSubscriptions(raw string) []DefaultSubscriptionSetting {
