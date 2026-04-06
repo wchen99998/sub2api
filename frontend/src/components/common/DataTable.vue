@@ -1,29 +1,29 @@
 <template>
   <div class="md:hidden space-y-3">
     <template v-if="loading">
-      <div v-for="i in 5" :key="i" class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+      <div v-for="i in 5" :key="i" class="rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.05] p-4">
         <div class="space-y-3">
           <div v-for="column in dataColumns" :key="column.key" class="flex justify-between">
-            <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
-            <div class="h-4 w-32 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
+            <div class="h-4 w-20 animate-pulse rounded bg-black/[0.06] dark:bg-white/[0.06]"></div>
+            <div class="h-4 w-32 animate-pulse rounded bg-black/[0.06] dark:bg-white/[0.06]"></div>
           </div>
-          <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
-            <div class="h-8 w-full animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
+          <div v-if="hasActionsColumn" class="border-t border-black/[0.06] dark:border-white/[0.08] pt-3">
+            <div class="h-8 w-full animate-pulse rounded bg-black/[0.06] dark:bg-white/[0.06]"></div>
           </div>
         </div>
       </div>
     </template>
 
     <template v-else-if="!data || data.length === 0">
-      <div class="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-dark-700 dark:bg-dark-900">
+      <div class="rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.05] p-12 text-center">
         <slot name="empty">
           <div class="flex flex-col items-center">
             <Icon
               name="inbox"
               size="xl"
-              class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500"
+              class="mb-4 h-12 w-12 text-mica-text-tertiary dark:text-mica-text-tertiary-dark"
             />
-            <p class="text-lg font-medium text-gray-900 dark:text-gray-100">
+            <p class="text-lg font-medium text-mica-text-primary dark:text-mica-text-primary-dark">
               {{ t('empty.noData') }}
             </p>
           </div>
@@ -35,7 +35,7 @@
       <div
         v-for="(row, index) in sortedData"
         :key="resolveRowKey(row, index)"
-        class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+        class="rounded-lg border border-black/[0.06] dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.05] p-4"
       >
         <div class="space-y-3">
           <div
@@ -43,16 +43,16 @@
             :key="column.key"
             class="flex items-start justify-between gap-4"
           >
-            <span class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400">
+            <span class="text-xs font-medium uppercase tracking-wider text-mica-text-tertiary dark:text-mica-text-tertiary-dark">
               {{ column.label }}
             </span>
-            <div class="text-right text-sm text-gray-900 dark:text-gray-100">
+            <div class="text-right text-sm text-mica-text-primary dark:text-mica-text-primary-dark">
               <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]" :expanded="actionsExpanded">
                 {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
               </slot>
             </div>
           </div>
-          <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
+          <div v-if="hasActionsColumn" class="border-t border-black/[0.06] dark:border-white/[0.08] pt-3">
             <slot name="cell-actions" :row="row" :value="row['actions']" :expanded="actionsExpanded"></slot>
           </div>
         </div>
@@ -68,17 +68,17 @@
       'is-scrollable': isScrollable
     }"
   >
-    <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
-      <thead class="table-header bg-gray-50 dark:bg-dark-800">
+    <table class="min-w-full divide-y divide-black/[0.06] dark:divide-white/[0.08]">
+      <thead class="table-header bg-black/[0.02] dark:bg-white/[0.02]">
         <tr>
           <th
             v-for="(column, index) in columns"
             :key="column.key"
             scope="col"
             :class="[
-              'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
+              'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-mica-text-tertiary dark:text-mica-text-tertiary-dark',
               getAdaptivePaddingClass(),
-              { 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700': column.sortable },
+              { 'cursor-pointer hover:bg-black/[0.04] dark:hover:bg-white/[0.04]': column.sortable },
               getStickyColumnClass(column, index),
               column.class
             ]"
@@ -92,7 +92,7 @@
             >
               <div class="flex items-center space-x-1">
                 <span>{{ column.label }}</span>
-                <span v-if="column.sortable" class="text-gray-400 dark:text-dark-500">
+                <span v-if="column.sortable" class="text-mica-text-tertiary dark:text-mica-text-tertiary-dark">
                   <svg
                     v-if="sortKey === column.key"
                     class="h-4 w-4"
@@ -117,12 +117,12 @@
           </th>
         </tr>
       </thead>
-      <tbody class="table-body divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
+      <tbody class="table-body divide-y divide-black/[0.06] dark:divide-white/[0.08] bg-transparent">
         <!-- Loading skeleton -->
         <tr v-if="loading" v-for="i in 5" :key="i">
           <td v-for="column in columns" :key="column.key" :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]">
             <div class="animate-pulse">
-              <div class="h-4 w-3/4 rounded bg-gray-200 dark:bg-dark-700"></div>
+              <div class="h-4 w-3/4 rounded bg-black/[0.06] dark:bg-white/[0.06]"></div>
             </div>
           </td>
         </tr>
@@ -131,16 +131,16 @@
         <tr v-else-if="!data || data.length === 0">
           <td
             :colspan="columns.length"
-            :class="['py-12 text-center text-gray-500 dark:text-dark-400', getAdaptivePaddingClass()]"
+            :class="['py-12 text-center text-mica-text-secondary dark:text-mica-text-secondary-dark', getAdaptivePaddingClass()]"
           >
             <slot name="empty">
               <div class="flex flex-col items-center">
                 <Icon
                   name="inbox"
                   size="xl"
-                  class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500"
+                  class="mb-4 h-12 w-12 text-mica-text-tertiary dark:text-mica-text-tertiary-dark"
                 />
-                <p class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                <p class="text-lg font-medium text-mica-text-primary dark:text-mica-text-primary-dark">
                   {{ t('empty.noData') }}
                 </p>
               </div>
@@ -161,13 +161,13 @@
             :data-row-id="resolveRowKey(sortedData[virtualRow.index], virtualRow.index)"
             :data-index="virtualRow.index"
             :ref="measureElement"
-            class="hover:bg-gray-50 dark:hover:bg-dark-800"
+            class="hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
           >
             <td
               v-for="(column, colIndex) in columns"
               :key="column.key"
               :class="[
-                'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
+                'whitespace-nowrap py-4 text-sm text-mica-text-primary dark:text-mica-text-primary-dark',
                 getAdaptivePaddingClass(),
                 getStickyColumnClass(column, colIndex),
                 column.class
@@ -673,11 +673,11 @@ defineExpose({
   position: sticky;
   top: 0;
   z-index: 200;
-  background-color: rgb(249 250 251);
+  background-color: rgba(0,0,0,0.02);
 }
 
 .dark .table-wrapper .table-header {
-  background-color: rgb(31 41 55);
+  background-color: rgba(255,255,255,0.02);
 }
 
 /* 表体保持在表头下方 */
@@ -691,11 +691,11 @@ defineExpose({
   position: sticky;
   top: 0;
   z-index: 210; /* 必须高于所有表体内容 */
-  background-color: rgb(249 250 251);
+  background-color: rgba(0,0,0,0.02);
 }
 
 .dark .sticky-header-cell {
-  background-color: rgb(31 41 55);
+  background-color: rgba(255,255,255,0.02);
 }
 
 /* Sticky 列基础样式 */
@@ -731,20 +731,20 @@ defineExpose({
 
 /* 表体 sticky 列背景 */
 tbody .sticky-col {
-  background-color: white;
+  background-color: #f2f0ed;
 }
 
 .dark tbody .sticky-col {
-  background-color: rgb(17 24 39);
+  background-color: #1c1b1a;
 }
 
 /* hover 状态保持 */
 tbody tr:hover .sticky-col {
-  background-color: rgb(249 250 251);
+  background-color: rgba(0,0,0,0.02);
 }
 
 .dark tbody tr:hover .sticky-col {
-  background-color: rgb(31 41 55);
+  background-color: rgba(255,255,255,0.03);
 }
 
 /* 阴影只在可滚动时显示 */
