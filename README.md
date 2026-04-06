@@ -12,7 +12,7 @@
 
 **AI API Gateway Platform for Subscription Quota Distribution**
 
-English | [中文](README_CN.md) | [日本語](README_JA.md)
+English
 
 </div>
 
@@ -42,6 +42,7 @@ Sub2API is an AI API gateway platform designed to distribute and manage API quot
 - **Smart Scheduling** - Intelligent account selection with sticky sessions
 - **Concurrency Control** - Per-user and per-account concurrency limits
 - **Rate Limiting** - Configurable request and token rate limits
+- **Observability** - Optional LGTM stack (Prometheus, Grafana, Tempo, Loki) with OpenTelemetry tracing and metrics
 - **Admin Dashboard** - Web interface for monitoring and management
 - **External System Integration** - Embed external systems (e.g. payment, ticketing) via iframe to extend the admin dashboard
 
@@ -88,6 +89,7 @@ Community projects that extend or integrate with Sub2API:
 | Frontend | Vue 3.4+, Vite 5+, TailwindCSS |
 | Database | PostgreSQL 15+ |
 | Cache/Queue | Redis 7+ |
+| Observability | OpenTelemetry, Prometheus, Grafana, Tempo, Loki |
 
 ---
 

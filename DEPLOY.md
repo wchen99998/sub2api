@@ -269,6 +269,7 @@ helm install monitoring deploy/helm/monitoring \
   --set tempo.tempo.storage.trace.s3.endpoint="$R2_ENDPOINT" \
   --set tempo.tempo.storage.trace.s3.access_key="$R2_ACCESS_KEY" \
   --set tempo.tempo.storage.trace.s3.secret_key="$R2_SECRET_KEY" \
+  --set loki.loki.auth_enabled=false \
   --set loki.loki.storage.s3.endpoint="$R2_ENDPOINT" \
   --set loki.loki.storage.s3.accessKeyId="$R2_ACCESS_KEY" \
   --set loki.loki.storage.s3.secretAccessKey="$R2_SECRET_KEY" \
@@ -278,10 +279,18 @@ helm install monitoring deploy/helm/monitoring \
   --set loki.loki.storage.bucketNames.ruler=sub2api-loki \
   --set loki.loki.storage.bucketNames.admin=sub2api-loki \
   --set loki.chunksCache.allocatedMemory=512 \
-  --set loki.resultsCache.allocatedMemory=256
+  --set loki.resultsCache.allocatedMemory=256 \
+  --set 'alloy.alloy.extraPorts[0].name=otlp-grpc' \
+  --set 'alloy.alloy.extraPorts[0].port=4317' \
+  --set 'alloy.alloy.extraPorts[0].targetPort=4317' \
+  --set 'alloy.alloy.extraPorts[0].protocol=TCP'
 ```
 
 > **Note:** The default Loki cache memory (9.8 GB) is too large for small clusters. The command above reduces it to 512 MB / 256 MB. Adjust based on your cluster capacity.
+>
+> **Note:** `loki.loki.auth_enabled=false` disables Loki's multi-tenant auth. Without this, Alloy log pushes fail with 401 "no org id".
+>
+> **Note:** The `alloy.alloy.extraPorts` flags expose the gRPC OTLP receiver (port 4317) on the Alloy service so Sub2API can send traces/metrics cross-namespace.
 
 ### Enable OTel in Sub2API
 
@@ -291,8 +300,15 @@ Once the monitoring stack is running, enable OTel in the app:
 helm upgrade sub2api deploy/helm/sub2api \
   -n sub2api --reuse-values \
   --set observability.enabled=true \
-  --set observability.otel.endpoint="monitoring-alloy.monitoring.svc:4317"
+  --set observability.otel.serviceName=sub2api \
+  --set observability.otel.endpoint="monitoring-alloy.monitoring.svc:4317" \
+  --set observability.otel.traceSampleRate="0.1" \
+  --set observability.otel.metricsPort=9090 \
+  --set observability.serviceMonitor.enabled=true \
+  --set observability.serviceMonitor.interval=15s
 ```
+
+> **Note:** When using `--reuse-values`, all `observability.otel.*` sub-keys must be explicitly set since they don't exist in the prior release values.
 
 ### Access Grafana
 
