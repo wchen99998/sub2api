@@ -38,9 +38,8 @@ func PrepareOpsRequestBodyForQueue(raw []byte) (requestBodyJSON *string, truncat
 
 // OpsService provides ingestion and query APIs for the Ops monitoring module.
 type OpsService struct {
-	opsRepo     OpsRepository
-	settingRepo SettingRepository
-	cfg         *config.Config
+	opsRepo OpsRepository
+	cfg     *config.Config
 
 	accountRepo AccountRepository
 	userRepo    UserRepository
@@ -53,12 +52,10 @@ type OpsService struct {
 	openAIGatewayService      *OpenAIGatewayService
 	geminiCompatService       *GeminiMessagesCompatService
 	antigravityGatewayService *AntigravityGatewayService
-	systemLogSink             *OpsSystemLogSink
 }
 
 func NewOpsService(
 	opsRepo OpsRepository,
-	settingRepo SettingRepository,
 	cfg *config.Config,
 	accountRepo AccountRepository,
 	userRepo UserRepository,
@@ -67,12 +64,10 @@ func NewOpsService(
 	openAIGatewayService *OpenAIGatewayService,
 	geminiCompatService *GeminiMessagesCompatService,
 	antigravityGatewayService *AntigravityGatewayService,
-	systemLogSink *OpsSystemLogSink,
 ) *OpsService {
-	svc := &OpsService{
-		opsRepo:     opsRepo,
-		settingRepo: settingRepo,
-		cfg:         cfg,
+	return &OpsService{
+		opsRepo: opsRepo,
+		cfg:     cfg,
 
 		accountRepo: accountRepo,
 		userRepo:    userRepo,
@@ -82,42 +77,28 @@ func NewOpsService(
 		openAIGatewayService:      openAIGatewayService,
 		geminiCompatService:       geminiCompatService,
 		antigravityGatewayService: antigravityGatewayService,
-		systemLogSink:             systemLogSink,
 	}
-	svc.applyRuntimeLogConfigOnStartup(context.Background())
-	return svc
 }
 
+// RequireMonitoringEnabled is a no-op stub. Monitoring is always enabled now
+// that the built-in observability stack has been replaced by LGTM.
+// TODO: remove this method and all call sites when the full ops error-log
+// system is removed.
 func (s *OpsService) RequireMonitoringEnabled(ctx context.Context) error {
-	if s.IsMonitoringEnabled(ctx) {
+	return nil
+}
+
+// IsMonitoringEnabled always returns true. See RequireMonitoringEnabled.
+func (s *OpsService) IsMonitoringEnabled(ctx context.Context) bool {
+	return true
+}
+
+// OpsConfig returns the ops config block, or nil if unavailable.
+func (s *OpsService) OpsConfig() *config.OpsConfig {
+	if s == nil || s.cfg == nil {
 		return nil
 	}
-	return ErrOpsDisabled
-}
-
-func (s *OpsService) IsMonitoringEnabled(ctx context.Context) bool {
-	// Hard switch: disable ops entirely.
-	if s.cfg != nil && !s.cfg.Ops.Enabled {
-		return false
-	}
-	if s.settingRepo == nil {
-		return true
-	}
-	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpsMonitoringEnabled)
-	if err != nil {
-		// Default enabled when key is missing, and fail-open on transient errors
-		// (ops should never block gateway traffic).
-		if errors.Is(err, ErrSettingNotFound) {
-			return true
-		}
-		return true
-	}
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "false", "0", "off", "disabled":
-		return false
-	default:
-		return true
-	}
+	return &s.cfg.Ops
 }
 
 func (s *OpsService) RecordError(ctx context.Context, entry *OpsInsertErrorLogInput, rawRequestBody []byte) error {
