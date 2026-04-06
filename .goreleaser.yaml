@@ -26,6 +26,20 @@ builds:
       - -X main.Date={{.Date}}
       - -X main.BuildType=release
 
+  - id: sub2api-bootstrap
+    dir: backend
+    main: ./cmd/bootstrap
+    binary: sub2api-bootstrap
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
 archives:
   - id: default
     formats:
@@ -48,7 +62,7 @@ changelog:
 # Docker images — one per arch, no QEMU needed (Go cross-compiles natively)
 dockers:
   - id: amd64
-    ids: [sub2api]
+    ids: [sub2api, sub2api-bootstrap]
     goos: linux
     goarch: amd64
     image_templates:
@@ -62,7 +76,7 @@ dockers:
       - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
 
   - id: arm64
-    ids: [sub2api]
+    ids: [sub2api, sub2api-bootstrap]
     goos: linux
     goarch: arm64
     image_templates:

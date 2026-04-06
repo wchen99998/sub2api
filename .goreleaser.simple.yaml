@@ -26,6 +26,19 @@ builds:
       - -X main.Date={{.Date}}
       - -X main.BuildType=release
 
+  - id: sub2api-bootstrap
+    dir: backend
+    main: ./cmd/bootstrap
+    binary: sub2api-bootstrap
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+
 # 跳过 archives
 archives: []
 
@@ -39,7 +52,7 @@ changelog:
 # 仅 GHCR x86_64 镜像
 dockers:
   - id: amd64
-    ids: [sub2api]
+    ids: [sub2api, sub2api-bootstrap]
     goos: linux
     goarch: amd64
     image_templates:
