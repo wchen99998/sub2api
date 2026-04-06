@@ -109,6 +109,7 @@ ingress:
   cloudflareProxied: "true"
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
   tls:
     enabled: false
     secretName: ""

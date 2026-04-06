@@ -1,6 +1,11 @@
 # Kubernetes Deployment Guide
 
-Deploy Sub2API on DigitalOcean Kubernetes (DOKS) using Terraform for infrastructure and Helm for the application.
+Deploy Sub2API on DigitalOcean Kubernetes (DOKS) with a clean ownership split:
+
+- Terraform manages cluster-level infrastructure: DOKS, ingress-nginx, cert-manager, ExternalDNS, optional managed PostgreSQL, optional R2 buckets, and optional monitoring.
+- Helm manages the `sub2api` application release in the `sub2api` namespace.
+
+Do not manage the `sub2api` application Helm release through Terraform. Keep app rollouts, rollbacks, and image updates in Helm so application deployment remains independent from infrastructure reconciliation.
 
 ## Prerequisites
 
@@ -11,6 +16,24 @@ Deploy Sub2API on DigitalOcean Kubernetes (DOKS) using Terraform for infrastruct
 - A DigitalOcean API token ([create one](https://cloud.digitalocean.com/account/api/tokens))
 - A Cloudflare API token with DNS edit permissions ([create one](https://dash.cloudflare.com/profile/api-tokens))
 - Your Cloudflare zone ID (found on your domain's overview page)
+
+## Deployment Ownership
+
+Use Terraform for:
+- DOKS cluster lifecycle
+- ingress-nginx, cert-manager, ExternalDNS
+- Cloudflare-backed DNS/certificate bootstrap
+- Optional external DO managed PostgreSQL
+- Optional R2 buckets for Tempo and Loki
+- Optional monitoring stack in `monitoring`
+
+Use Helm for:
+- Installing `sub2api`
+- Bundled PostgreSQL in the `sub2api` namespace
+- Bundled Redis in the `sub2api` namespace
+- Upgrading `sub2api` image versions
+- Switching the app between bundled and external PostgreSQL/Redis
+- App-level rollback and runtime tuning
 
 ## 1. Provision Infrastructure
 
@@ -89,7 +112,9 @@ doctl kubernetes cluster kubeconfig save sub2api
 kubectl get nodes     # verify connectivity
 ```
 
-## 3. Deploy Sub2API
+## 3. Deploy Sub2API with Helm
+
+`sub2api` should be deployed directly with Helm, not through Terraform.
 
 ### Build Helm dependencies
 
@@ -108,7 +133,7 @@ kubectl -n sub2api create secret docker-registry ghcr-pull \
   --docker-password=<GITHUB_PAT_WITH_READ_PACKAGES>
 ```
 
-### Generate secrets and install
+### Generate secrets
 
 ```bash
 JWT_SECRET=$(openssl rand -hex 32)
@@ -121,22 +146,40 @@ echo "JWT_SECRET:    $JWT_SECRET"
 echo "ADMIN_PASS:    $ADMIN_PASS"
 ```
 
-Install with in-cluster PostgreSQL and Redis:
+For the default deployment path, keep PostgreSQL and Redis in-cluster and install the app with Helm:
 
 ```bash
-helm install sub2api deploy/helm/sub2api \
+helm upgrade --install sub2api deploy/helm/sub2api \
   -n sub2api \
+  --create-namespace \
   --set image.repository=ghcr.io/wchen99998/robust2api \
-  --set image.tag=0.1.1 \
+  --set image.tag=0.1.2 \
+  --set replicaCount=1 \
   --set ingress.host=api-sub2api.do-prod.yourdomain.com \
   --set ingress.tls.enabled=true \
+  --set ingress.annotations.nginx\\.ingress\\.kubernetes\\.io/ssl-redirect=true \
   --set secrets.jwtSecret="$JWT_SECRET" \
   --set secrets.totpEncryptionKey="$TOTP_KEY" \
+  --set secrets.adminEmail="admin@sub2api.local" \
   --set secrets.adminPassword="$ADMIN_PASS" \
   --set postgresql.auth.password="$PG_PASS" \
   --set redis.auth.password="$REDIS_PASS" \
-  --set 'imagePullSecrets[0].name=ghcr-pull'
+  --set 'imagePullSecrets[0].name=ghcr-pull' \
+  --set observability.enabled=false \
+  --set observability.serviceMonitor.enabled=false
 ```
+
+This path uses:
+- The chart-managed PostgreSQL subchart for the application database
+- The chart-managed Redis subchart for caching / coordination
+- The default ingress naming pattern `api-sub2api.<domain_suffix>`
+- Helm as the source of truth for future app upgrades
+
+Because the bundled PostgreSQL and Redis instances are created by the `sub2api` chart in the `sub2api` namespace, treat them as application components, not Terraform-managed infrastructure.
+
+> **Important:** `TOTP_KEY` must be a 64-character hex key. `openssl rand -hex 32` is correct. Do not use a 32-character random string.
+
+> **Important:** `deploy/helm/sub2api/values-production.yaml` is for external database / external Redis style deployments. Do not include it for the default bundled PostgreSQL + Redis installation above.
 
 > **Cloudflare SSL:** Set your Cloudflare SSL/TLS mode to **"Full (Strict)"** in the dashboard (SSL/TLS -> Overview). This ensures end-to-end encryption: client -> Cloudflare -> HTTPS -> nginx (Let's Encrypt cert) -> app. Using "Flexible" mode will cause a 308 redirect loop because nginx forces HTTPS.
 
@@ -156,6 +199,24 @@ kubectl -n sub2api get certificate # TLS cert should show READY=True
 ```
 
 Your app should be accessible at `https://api-sub2api.do-prod.yourdomain.com`.
+
+### Upgrade Sub2API
+
+Use Helm for all app upgrades:
+
+```bash
+helm upgrade sub2api deploy/helm/sub2api \
+  -n sub2api \
+  --reuse-values \
+  --set image.tag=<new-version>
+```
+
+### Roll back Sub2API
+
+```bash
+helm history sub2api -n sub2api
+helm rollback sub2api <revision> -n sub2api
+```
 
 ## DNS Pattern and ExternalDNS
 
@@ -192,7 +253,7 @@ ExternalDNS will create records for all hosts listed in the Ingress. For custom 
 
 ## 4. Using Managed PostgreSQL (Optional)
 
-To use DigitalOcean Managed PostgreSQL instead of in-cluster:
+If you want Terraform to provision DigitalOcean Managed PostgreSQL, let Terraform create the external database and keep Helm responsible for switching the app release to it.
 
 ```bash
 cd infra/production
@@ -203,7 +264,7 @@ cd infra/production
 terraform apply
 ```
 
-Then update the Helm release to use the external database:
+Then update the Helm release to use the external database. Start from `values-production.yaml`, which is designed for external services:
 
 ```bash
 DB_HOST=$(terraform output -raw database_host)
@@ -214,6 +275,7 @@ DB_PASS=$(terraform output -raw database_password)
 helm upgrade sub2api deploy/helm/sub2api \
   -n sub2api \
   -f deploy/helm/sub2api/values-production.yaml \
+  --reset-values \
   --set postgresql.enabled=false \
   --set externalDatabase.host="$DB_HOST" \
   --set externalDatabase.port="$DB_PORT" \
@@ -221,12 +283,24 @@ helm upgrade sub2api deploy/helm/sub2api \
   --set externalDatabase.password="$DB_PASS" \
   --set externalDatabase.database=sub2api \
   --set externalDatabase.sslmode=require \
-  --reuse-values
+  --set secrets.jwtSecret="$JWT_SECRET" \
+  --set secrets.totpEncryptionKey="$TOTP_KEY" \
+  --set secrets.adminPassword="$ADMIN_PASS"
+```
+
+If you also move Redis out of cluster, set:
+
+```bash
+  --set redis.enabled=false \
+  --set externalRedis.host="<redis-host>" \
+  --set externalRedis.port=6379 \
+  --set externalRedis.password="<redis-password>" \
+  --set externalRedis.enableTLS=true
 ```
 
 ## 5. Deploy Monitoring Stack (Optional)
 
-Deploy the LGTM observability stack (Loki, Grafana, Tempo, Prometheus) with Cloudflare R2 for trace/log storage.
+The monitoring stack is cluster-level infrastructure. Manage it with Terraform, not a separate manual `helm install`.
 
 ### Prerequisites
 
@@ -237,64 +311,41 @@ Deploy the LGTM observability stack (Loki, Grafana, Tempo, Prometheus) with Clou
    cloudflare_account_id        = "your_cloudflare_account_id"
    ```
 
-### Provision R2 storage
+Set the following in `terraform.tfvars` before applying:
+
+```hcl
+enable_observability_storage = true
+cloudflare_account_id        = "your_cloudflare_account_id"
+enable_monitoring            = true
+r2_access_key                = "your_r2_access_key"
+r2_secret_key                = "your_r2_secret_key"
+```
+
+Then apply:
 
 ```bash
 cd infra/production
 terraform apply
 ```
 
-This creates two R2 buckets (`<cluster_name>-tempo` and `<cluster_name>-loki`) in the APAC region.
+This creates:
+- Two R2 buckets (`<cluster_name>-tempo` and `<cluster_name>-loki`)
+- The `monitoring` Helm release
+- Grafana ingress at `grafana.<domain_suffix>`
 
 ### Create an R2 API token
 
 Create an R2-scoped API token from the [Cloudflare dashboard](https://dash.cloudflare.com) -> R2 -> Manage R2 API Tokens. This gives you S3-compatible credentials (access key ID + secret) that Tempo and Loki use.
 
-### Deploy
-
-```bash
-helm dependency build deploy/helm/monitoring
-
-R2_ENDPOINT="<account_id>.r2.cloudflarestorage.com"
-R2_ACCESS_KEY="<r2_access_key_id>"
-R2_SECRET_KEY="<r2_secret_access_key>"
-GRAFANA_PASS=$(openssl rand -base64 16)
-
-echo "GRAFANA_PASS: $GRAFANA_PASS"
-
-helm install monitoring deploy/helm/monitoring \
-  -n monitoring --create-namespace \
-  --set kube-prometheus-stack.grafana.adminPassword="$GRAFANA_PASS" \
-  --set tempo.tempo.storage.trace.s3.bucket=sub2api-tempo \
-  --set tempo.tempo.storage.trace.s3.endpoint="$R2_ENDPOINT" \
-  --set tempo.tempo.storage.trace.s3.access_key="$R2_ACCESS_KEY" \
-  --set tempo.tempo.storage.trace.s3.secret_key="$R2_SECRET_KEY" \
-  --set loki.loki.auth_enabled=false \
-  --set loki.loki.storage.s3.endpoint="$R2_ENDPOINT" \
-  --set loki.loki.storage.s3.accessKeyId="$R2_ACCESS_KEY" \
-  --set loki.loki.storage.s3.secretAccessKey="$R2_SECRET_KEY" \
-  --set loki.loki.storage.s3.s3ForcePathStyle=true \
-  --set loki.loki.storage.s3.region=auto \
-  --set loki.loki.storage.bucketNames.chunks=sub2api-loki \
-  --set loki.loki.storage.bucketNames.ruler=sub2api-loki \
-  --set loki.loki.storage.bucketNames.admin=sub2api-loki \
-  --set loki.chunksCache.allocatedMemory=512 \
-  --set loki.resultsCache.allocatedMemory=256 \
-  --set 'alloy.alloy.extraPorts[0].name=otlp-grpc' \
-  --set 'alloy.alloy.extraPorts[0].port=4317' \
-  --set 'alloy.alloy.extraPorts[0].targetPort=4317' \
-  --set 'alloy.alloy.extraPorts[0].protocol=TCP'
-```
-
-> **Note:** The default Loki cache memory (9.8 GB) is too large for small clusters. The command above reduces it to 512 MB / 256 MB. Adjust based on your cluster capacity.
+> **Note:** The default Loki cache memory (9.8 GB) is too large for small clusters. The monitoring chart is configured to reduce it to 512 MB / 256 MB. Adjust this if your cluster capacity changes.
 >
 > **Note:** `loki.loki.auth_enabled=false` disables Loki's multi-tenant auth. Without this, Alloy log pushes fail with 401 "no org id".
 >
-> **Note:** The `alloy.alloy.extraPorts` flags expose the gRPC OTLP receiver (port 4317) on the Alloy service so Sub2API can send traces/metrics cross-namespace.
+> **Note:** The monitoring Terraform module configures the Alloy gRPC OTLP receiver (port 4317) so Sub2API can send traces and metrics cross-namespace.
 
 ### Enable OTel in Sub2API
 
-Once the monitoring stack is running, enable OTel in the app:
+Once the monitoring stack is running, enable OTel in the app with Helm:
 
 ```bash
 helm upgrade sub2api deploy/helm/sub2api \
@@ -310,27 +361,13 @@ helm upgrade sub2api deploy/helm/sub2api \
 
 > **Note:** When using `--reuse-values`, all `observability.otel.*` sub-keys must be explicitly set since they don't exist in the prior release values.
 
-### Expose Grafana Externally (Optional)
-
-To expose Grafana with a public domain, TLS, and automatic DNS via ExternalDNS, add `grafanaIngress.host` to the deploy command:
-
-```bash
-helm upgrade monitoring deploy/helm/monitoring \
-  --namespace monitoring --reuse-values \
-  --set grafanaIngress.host=grafana.<domain_suffix>
-```
-
-This creates an Ingress with ingress-nginx, cert-manager (Let's Encrypt), and ExternalDNS — same stack as the main application. The TLS certificate is auto-provisioned.
-
-> **Note:** On first enable with `--reuse-values`, you must also pass `--set grafanaIngress.className=nginx --set grafanaIngress.clusterIssuer=letsencrypt-prod --set-string grafanaIngress.cloudflareProxied=true` since these defaults don't exist in the prior release. Subsequent upgrades will reuse them.
-
 ### Accessing the Monitoring UIs
 
 Grafana is accessible externally if the ingress above is enabled (e.g. `https://grafana.<domain_suffix>`). Other services are ClusterIP-only — use `kubectl port-forward`:
 
 | Service | Access | Credentials |
 |---------|--------|-------------|
-| **Grafana** | `https://grafana.<domain_suffix>` or `kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80` → http://localhost:3000 | `admin` / your `GRAFANA_PASS` |
+| **Grafana** | `https://grafana.<domain_suffix>` or `kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80` → http://localhost:3000 | `admin` / `terraform -chdir=infra/production output -raw grafana_admin_password` |
 | **Prometheus** | `kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090` → http://localhost:9090 | None |
 | **Tempo** | `kubectl -n monitoring port-forward svc/monitoring-tempo 3200:3200` → http://localhost:3200 | None |
 | **Alertmanager** | `kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-alertmanager 9093:9093` → http://localhost:9093 | None |
@@ -381,15 +418,6 @@ kubectl -n sub2api logs deployment/sub2api | grep "Metrics server"  # metrics se
 
 ## Common Operations
 
-### Upgrade Sub2API
-
-```bash
-helm upgrade sub2api deploy/helm/sub2api \
-  -n sub2api \
-  --reuse-values \
-  --set image.tag=<new-version>
-```
-
 ### Scale the cluster
 
 Edit `terraform.tfvars`:
@@ -422,13 +450,14 @@ terraform output kubeconfig_command # kubectl setup command
 
 ```bash
 # Remove monitoring stack (if deployed)
-helm uninstall monitoring -n monitoring
+cd infra/production
+terraform destroy -target=module.monitoring
+terraform destroy -target=module.storage
 
 # Remove app
 helm uninstall sub2api -n sub2api
 
 # Destroy infrastructure
-cd infra/production
 terraform destroy
 ```
 
@@ -463,6 +492,7 @@ Monitoring stack (namespace: monitoring, optional)
 | `infra/modules/kubernetes` | ingress-nginx, cert-manager (DNS-01), ExternalDNS, ClusterIssuer, app namespace |
 | `infra/modules/database` | Optional DO Managed PostgreSQL with VPC firewall |
 | `infra/modules/storage` | Optional Cloudflare R2 buckets for Tempo and Loki |
+| `infra/modules/monitoring` | Optional monitoring Helm release managed by Terraform |
 
 ## Troubleshooting
 

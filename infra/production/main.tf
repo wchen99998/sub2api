@@ -10,15 +10,41 @@ provider "cloudflare" {
 
 provider "kubernetes" {
   host                   = module.doks.endpoint
-  token                  = module.doks.token
   cluster_ca_certificate = module.doks.cluster_ca_certificate
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "doctl"
+    args = [
+      "kubernetes",
+      "cluster",
+      "kubeconfig",
+      "exec-credential",
+      "--version=v1beta1",
+      "--context=do",
+      module.doks.cluster_id,
+    ]
+  }
 }
 
 provider "helm" {
   kubernetes {
     host                   = module.doks.endpoint
-    token                  = module.doks.token
     cluster_ca_certificate = module.doks.cluster_ca_certificate
+
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "doctl"
+      args = [
+        "kubernetes",
+        "cluster",
+        "kubeconfig",
+        "exec-credential",
+        "--version=v1beta1",
+        "--context=do",
+        module.doks.cluster_id,
+      ]
+    }
   }
 }
 
@@ -80,63 +106,15 @@ check "monitoring_requires_r2_credentials" {
   }
 }
 
+locals {
+  effective_grafana_admin_password = var.existing_grafana_admin_password != "" ? var.existing_grafana_admin_password : random_password.grafana_admin_password.result
+}
+
 # --- Auto-generated secrets ---
-
-resource "random_password" "jwt_secret" {
-  length  = 32
-  special = true
-}
-
-resource "random_id" "totp_encryption_key" {
-  byte_length = 32
-}
-
-resource "random_password" "sub2api_postgresql_password" {
-  length  = 32
-  special = true
-}
-
-resource "random_password" "sub2api_redis_password" {
-  length  = 32
-  special = true
-}
-
-resource "random_password" "admin_password" {
-  length  = 16
-  special = true
-}
 
 resource "random_password" "grafana_admin_password" {
   length  = 16
   special = true
-}
-
-# --- Application ---
-
-module "sub2api" {
-  source = "../modules/sub2api"
-
-  chart_path    = "${path.module}/../../deploy/helm/sub2api"
-  namespace     = module.kubernetes.app_namespace
-  domain_suffix = var.domain_suffix
-  app_image_tag = var.app_image_tag
-
-  # Database (conditional on managed DB)
-  database_host                  = var.enable_managed_database ? module.database[0].host : ""
-  database_port                  = var.enable_managed_database ? module.database[0].port : 5432
-  database_user                  = var.enable_managed_database ? module.database[0].user : "sub2api"
-  database_password              = var.enable_managed_database ? module.database[0].password : ""
-  database_name                  = var.enable_managed_database ? module.database[0].database : "sub2api"
-  in_cluster_postgresql_password = random_password.sub2api_postgresql_password.result
-  in_cluster_redis_password      = random_password.sub2api_redis_password.result
-
-  # Secrets (auto-generated)
-  jwt_secret          = random_password.jwt_secret.result
-  totp_encryption_key = random_id.totp_encryption_key.hex
-  admin_email         = var.admin_email
-  admin_password      = random_password.admin_password.result
-
-  depends_on = [module.kubernetes]
 }
 
 # --- Monitoring (optional) ---
@@ -145,10 +123,11 @@ module "monitoring" {
   source = "../modules/monitoring"
   count  = var.enable_monitoring ? 1 : 0
 
-  chart_path    = "${path.module}/../../deploy/helm/monitoring"
-  domain_suffix = var.domain_suffix
+  chart_path      = "${path.module}/../../deploy/helm/monitoring"
+  domain_suffix   = var.domain_suffix
+  hostname_prefix = var.grafana_hostname_prefix
 
-  grafana_admin_password = random_password.grafana_admin_password.result
+  grafana_admin_password = local.effective_grafana_admin_password
 
   # R2 storage (from storage module)
   r2_endpoint   = var.enable_observability_storage ? module.storage[0].s3_endpoint : ""

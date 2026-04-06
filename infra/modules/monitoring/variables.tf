@@ -10,6 +10,12 @@ variable "domain_suffix" {
   type        = string
 }
 
+variable "hostname_prefix" {
+  description = "Hostname prefix used for the Grafana URL (<prefix>.<suffix>)"
+  type        = string
+  default     = "grafana"
+}
+
 # --- Grafana ---
 
 variable "grafana_admin_password" {

@@ -103,25 +103,25 @@ variable "cloudflare_account_id" {
   default     = ""
 }
 
-# --- Sub2API application ---
-
-variable "app_image_tag" {
-  description = "Container image tag for the sub2api deployment"
-  type        = string
-}
-
-variable "admin_email" {
-  description = "Initial admin account email"
-  type        = string
-  default     = "admin@sub2api.local"
-}
-
 # --- Monitoring (optional) ---
 
 variable "enable_monitoring" {
   description = "Deploy the LGTM monitoring stack via Helm"
   type        = bool
   default     = false
+}
+
+variable "grafana_hostname_prefix" {
+  description = "Hostname prefix used for the Grafana URL (<prefix>.<suffix>)"
+  type        = string
+  default     = "grafana"
+}
+
+variable "existing_grafana_admin_password" {
+  description = "Existing Grafana admin password to preserve during migration"
+  type        = string
+  default     = ""
+  sensitive   = true
 }
 
 variable "r2_access_key" {

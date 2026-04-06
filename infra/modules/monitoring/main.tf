@@ -1,5 +1,6 @@
 locals {
-  grafana_host = "grafana-monitoring.${var.domain_suffix}"
+  grafana_host     = "${var.hostname_prefix}.${var.domain_suffix}"
+  r2_endpoint_host = trimsuffix(trimprefix(trimprefix(var.r2_endpoint, "https://"), "http://"), "/")
 }
 
 resource "null_resource" "helm_deps" {
@@ -8,7 +9,20 @@ resource "null_resource" "helm_deps" {
   }
 
   provisioner "local-exec" {
-    command = "helm dependency build ${var.chart_path}"
+    command = <<-EOT
+      set -e
+      for attempt in 1 2 3; do
+        if helm dependency build "${var.chart_path}"; then
+          exit 0
+        fi
+        if [ "$attempt" -lt 3 ]; then
+          echo "helm dependency build failed for ${var.chart_path}, retrying ($${attempt}/3)..." >&2
+          sleep $((attempt * 2))
+        fi
+      done
+      echo "helm dependency build failed for ${var.chart_path} after 3 attempts" >&2
+      exit 1
+    EOT
   }
 }
 
@@ -39,7 +53,7 @@ resource "helm_release" "monitoring" {
 
   set {
     name  = "tempo.tempo.storage.trace.s3.endpoint"
-    value = var.r2_endpoint
+    value = local.r2_endpoint_host
   }
 
   set_sensitive {
@@ -55,7 +69,7 @@ resource "helm_release" "monitoring" {
   # --- Loki (R2 storage) ---
   set {
     name  = "loki.loki.storage.s3.endpoint"
-    value = var.r2_endpoint
+    value = local.r2_endpoint_host
   }
 
   set_sensitive {
