@@ -5,7 +5,11 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/repository"
 )
 
 func TestRunBootstrap_ValidatesEnvFirst(t *testing.T) {
@@ -25,13 +29,16 @@ func TestRunBootstrap_FailsOnDBConnectionError(t *testing.T) {
 		DatabaseDBName:    "sub2api",
 		DatabaseSSLMode:   "disable",
 		JWTSecret:         "abcdefghijklmnopqrstuvwxyz123456",
-		TOTPEncryptionKey: "abcdefghijklmnopqrstuvwxyz123456abcdefghijklmnopqrstuvwxyz123456",
+		TOTPEncryptionKey: strings.Repeat("a", 64),
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	err := Run(ctx, env)
 	if err == nil {
 		t.Fatal("expected DB connection error")
+	}
+	if !strings.Contains(err.Error(), "ping database") && !strings.Contains(err.Error(), "context deadline exceeded") {
+		t.Fatalf("expected database connection failure, got: %v", err)
 	}
 }
 
@@ -64,5 +71,14 @@ func TestRunSteps_StopsOnError(t *testing.T) {
 	}
 	if len(order) != 2 {
 		t.Fatalf("step3 should not have run, order: %v", order)
+	}
+}
+
+func TestAdminConcurrencyUsesRepositoryDefaults(t *testing.T) {
+	if got := adminConcurrency(BootstrapEnv{RunMode: "simple"}); got != repository.SimpleModeTargetAdminConcurrency {
+		t.Fatalf("simple mode concurrency = %d, want %d", got, repository.SimpleModeTargetAdminConcurrency)
+	}
+	if got := adminConcurrency(BootstrapEnv{}); got != repository.SimpleModeLegacyAdminConcurrency {
+		t.Fatalf("standard mode concurrency = %d, want %d", got, repository.SimpleModeLegacyAdminConcurrency)
 	}
 }

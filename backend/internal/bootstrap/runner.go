@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -103,34 +102,14 @@ func Run(ctx context.Context, env BootstrapEnv) error {
 // persistJWTSecret stores the JWT secret in the security_secrets table.
 func persistJWTSecret(ctx context.Context, client *ent.Client, secret string) error {
 	secret = strings.TrimSpace(secret)
-
-	// Try to insert; ON CONFLICT DO NOTHING handles the race.
-	if err := client.SecuritySecret.Create().
-		SetKey("jwt_secret").
-		SetValue(secret).
-		OnConflictColumns(securitysecret.FieldKey).
-		DoNothing().
-		Exec(ctx); err != nil {
-		if !isNoRowsErr(err) {
-			return fmt.Errorf("persist jwt secret: %w", err)
-		}
-	}
-
-	// Read back the persisted value (may differ from input if already existed).
-	stored, err := client.SecuritySecret.Query().
-		Where(securitysecret.KeyEQ("jwt_secret")).
-		Only(ctx)
+	stored, err := repository.CreateSecuritySecretIfAbsent(ctx, client, "jwt_secret", secret)
 	if err != nil {
-		return fmt.Errorf("read persisted jwt secret: %w", err)
+		return fmt.Errorf("persist jwt secret: %w", err)
 	}
-	if strings.TrimSpace(stored.Value) != secret {
-		log.Println("[bootstrap] WARNING: JWT_SECRET differs from previously persisted value; the persisted value takes precedence for cross-instance consistency")
+	if stored != secret {
+		return fmt.Errorf("jwt secret mismatch: persisted value already exists and differs from configured JWT_SECRET; refusing to continue to preserve cross-instance consistency")
 	}
 	return nil
-}
-
-func isNoRowsErr(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "no rows in result set")
 }
 
 // seedAdmin creates an admin user if the database has no users.
@@ -157,14 +136,23 @@ func seedAdmin(ctx context.Context, db *sql.DB, env BootstrapEnv) error {
 		return fmt.Errorf("hash admin password: %w", err)
 	}
 
-	_, err := db.ExecContext(ctx,
+	result, err := db.ExecContext(ctx,
 		`INSERT INTO users (email, password_hash, role, balance, concurrency, status, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (email) DO NOTHING`,
 		admin.Email, admin.PasswordHash, admin.Role, admin.Balance,
 		admin.Concurrency, admin.Status, admin.CreatedAt, admin.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert admin user: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read admin insert result: %w", err)
+	}
+	if rowsAffected == 0 {
+		log.Printf("[bootstrap] skipping admin creation: admin user already exists: %s", env.AdminEmail)
+		return nil
 	}
 	log.Printf("[bootstrap] admin user created: %s", env.AdminEmail)
 	return nil
@@ -172,7 +160,7 @@ func seedAdmin(ctx context.Context, db *sql.DB, env BootstrapEnv) error {
 
 func adminConcurrency(env BootstrapEnv) int {
 	if env.IsSimpleMode() {
-		return 30
+		return repository.SimpleModeTargetAdminConcurrency
 	}
-	return 5
+	return repository.SimpleModeLegacyAdminConcurrency
 }

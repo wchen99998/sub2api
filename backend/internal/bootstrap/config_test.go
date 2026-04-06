@@ -3,6 +3,7 @@
 package bootstrap
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -15,7 +16,7 @@ func TestValidateBootstrapEnv_AllRequired(t *testing.T) {
 		DatabaseDBName:    "sub2api",
 		DatabaseSSLMode:   "disable",
 		JWTSecret:         "abcdefghijklmnopqrstuvwxyz123456",
-		TOTPEncryptionKey: "abcdefghijklmnopqrstuvwxyz123456abcdefghijklmnopqrstuvwxyz123456",
+		TOTPEncryptionKey: strings.Repeat("a", 64),
 	}
 	if err := env.Validate(); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -30,7 +31,7 @@ func TestValidateBootstrapEnv_MissingJWTSecret(t *testing.T) {
 		DatabasePassword:  "secret",
 		DatabaseDBName:    "sub2api",
 		DatabaseSSLMode:   "disable",
-		TOTPEncryptionKey: "abcdefghijklmnopqrstuvwxyz123456abcdefghijklmnopqrstuvwxyz123456",
+		TOTPEncryptionKey: strings.Repeat("a", 64),
 	}
 	err := env.Validate()
 	if err == nil {
@@ -63,7 +64,7 @@ func TestValidateBootstrapEnv_AdminEmailWithoutPassword(t *testing.T) {
 		DatabaseDBName:    "sub2api",
 		DatabaseSSLMode:   "disable",
 		JWTSecret:         "abcdefghijklmnopqrstuvwxyz123456",
-		TOTPEncryptionKey: "abcdefghijklmnopqrstuvwxyz123456abcdefghijklmnopqrstuvwxyz123456",
+		TOTPEncryptionKey: strings.Repeat("a", 64),
 		AdminEmail:        "admin@example.com",
 	}
 	err := env.Validate()
@@ -81,7 +82,7 @@ func TestValidateBootstrapEnv_AdminEmailAndPassword(t *testing.T) {
 		DatabaseDBName:    "sub2api",
 		DatabaseSSLMode:   "disable",
 		JWTSecret:         "abcdefghijklmnopqrstuvwxyz123456",
-		TOTPEncryptionKey: "abcdefghijklmnopqrstuvwxyz123456abcdefghijklmnopqrstuvwxyz123456",
+		TOTPEncryptionKey: strings.Repeat("a", 64),
 		AdminEmail:        "admin@example.com",
 		AdminPassword:     "securepassword123",
 	}
@@ -98,7 +99,7 @@ func TestLoadBootstrapEnvFromEnv(t *testing.T) {
 	t.Setenv("DATABASE_DBNAME", "sub2api")
 	t.Setenv("DATABASE_SSLMODE", "require")
 	t.Setenv("JWT_SECRET", "abcdefghijklmnopqrstuvwxyz123456")
-	t.Setenv("TOTP_ENCRYPTION_KEY", "abcdefghijklmnopqrstuvwxyz123456abcdefghijklmnopqrstuvwxyz123456")
+	t.Setenv("TOTP_ENCRYPTION_KEY", strings.Repeat("a", 64))
 	t.Setenv("ADMIN_EMAIL", "admin@test.com")
 	t.Setenv("ADMIN_PASSWORD", "pass123")
 	t.Setenv("RUN_MODE", "simple")
@@ -128,5 +129,22 @@ func TestLoadBootstrapEnv_Defaults(t *testing.T) {
 	}
 	if env.DatabaseSSLMode != "disable" {
 		t.Errorf("expected default sslmode disable, got %s", env.DatabaseSSLMode)
+	}
+}
+
+func TestValidateBootstrapEnv_InvalidTOTPKey(t *testing.T) {
+	env := BootstrapEnv{
+		DatabaseHost:      "localhost",
+		DatabasePort:      "5432",
+		DatabaseUser:      "sub2api",
+		DatabasePassword:  "secret",
+		DatabaseDBName:    "sub2api",
+		DatabaseSSLMode:   "disable",
+		JWTSecret:         "abcdefghijklmnopqrstuvwxyz123456",
+		TOTPEncryptionKey: "not-hex",
+	}
+	err := env.Validate()
+	if err == nil {
+		t.Fatal("expected error for invalid TOTP_ENCRYPTION_KEY")
 	}
 }

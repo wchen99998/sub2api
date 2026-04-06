@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -60,6 +61,13 @@ func (e *BootstrapEnv) Validate() error {
 	}
 	if strings.TrimSpace(e.TOTPEncryptionKey) == "" {
 		return fmt.Errorf("TOTP_ENCRYPTION_KEY is required")
+	}
+	totpKeyBytes, err := hex.DecodeString(strings.TrimSpace(e.TOTPEncryptionKey))
+	if err != nil {
+		return fmt.Errorf("TOTP_ENCRYPTION_KEY must be valid hex: %w", err)
+	}
+	if len(totpKeyBytes) != 32 {
+		return fmt.Errorf("TOTP_ENCRYPTION_KEY must be 32 bytes (64 hex chars)")
 	}
 	if e.AdminEmail != "" && strings.TrimSpace(e.AdminPassword) == "" {
 		return fmt.Errorf("ADMIN_PASSWORD is required when ADMIN_EMAIL is set")
