@@ -43,6 +43,16 @@ grafanaIngress:
 tempo:
   enabled: true
   tempo:
+    metricsGenerator:
+      enabled: true
+      remoteWriteUrl: "http://monitoring-kube-prometheus-prometheus.monitoring.svc:9090/api/v1/write"
+    overrides:
+      defaults:
+        metrics_generator:
+          processors:
+            - service-graphs
+            - span-metrics
+            - local-blocks
     storage:
       trace:
         backend: s3
