@@ -310,16 +310,34 @@ helm upgrade sub2api deploy/helm/sub2api \
 
 > **Note:** When using `--reuse-values`, all `observability.otel.*` sub-keys must be explicitly set since they don't exist in the prior release values.
 
+### Expose Grafana Externally (Optional)
+
+To expose Grafana with a public domain, TLS, and automatic DNS via ExternalDNS:
+
+```bash
+GRAFANA_HOST="grafana.<domain_suffix>"   # e.g. grafana.wuhao99.com
+
+helm upgrade monitoring deploy/helm/monitoring \
+  --namespace monitoring --reuse-values \
+  --set 'kube-prometheus-stack.grafana.ingress.enabled=true' \
+  --set "kube-prometheus-stack.grafana.ingress.hosts[0]=$GRAFANA_HOST" \
+  --set "kube-prometheus-stack.grafana.ingress.annotations.external-dns\.alpha\.kubernetes\.io/hostname=$GRAFANA_HOST" \
+  --set 'kube-prometheus-stack.grafana.ingress.tls[0].secretName=grafana-tls' \
+  --set "kube-prometheus-stack.grafana.ingress.tls[0].hosts[0]=$GRAFANA_HOST"
+```
+
+This uses the same ingress-nginx + cert-manager + ExternalDNS stack as the main application. The certificate is auto-provisioned via Let's Encrypt.
+
 ### Accessing the Monitoring UIs
 
-All monitoring services are ClusterIP-only (not exposed to the internet). Use `kubectl port-forward` to access them locally:
+Grafana is accessible externally if the ingress above is enabled (e.g. `https://grafana.<domain_suffix>`). Other services are ClusterIP-only — use `kubectl port-forward`:
 
-| Service | Port-forward command | Local URL | Credentials |
-|---------|---------------------|-----------|-------------|
-| **Grafana** (dashboards, explore) | `kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80` | http://localhost:3000 | `admin` / your `GRAFANA_PASS` |
-| **Prometheus** (metrics, targets) | `kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090` | http://localhost:9090 | None |
-| **Tempo** (trace search) | `kubectl -n monitoring port-forward svc/monitoring-tempo 3200:3200` | http://localhost:3200 | None |
-| **Alertmanager** | `kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-alertmanager 9093:9093` | http://localhost:9093 | None |
+| Service | Access | Credentials |
+|---------|--------|-------------|
+| **Grafana** | `https://grafana.<domain_suffix>` or `kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80` → http://localhost:3000 | `admin` / your `GRAFANA_PASS` |
+| **Prometheus** | `kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090` → http://localhost:9090 | None |
+| **Tempo** | `kubectl -n monitoring port-forward svc/monitoring-tempo 3200:3200` → http://localhost:3200 | None |
+| **Alertmanager** | `kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-alertmanager 9093:9093` → http://localhost:9093 | None |
 
 #### Grafana: Dashboards and Explore
 
