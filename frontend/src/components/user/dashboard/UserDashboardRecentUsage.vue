@@ -1,7 +1,7 @@
 <template>
-  <div class="card">
-    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.recentUsage') }}</h2>
+  <div class="rounded-mica-lg bg-white/70 dark:bg-white/[0.05] backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.08]">
+    <div class="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] px-6 py-4">
+      <h2 class="text-mica-headline text-mica-text-primary dark:text-mica-text-primary-dark">{{ t('dashboard.recentUsage') }}</h2>
       <span class="badge badge-gray">{{ t('dashboard.last7Days') }}</span>
     </div>
     <div class="p-6">
@@ -12,22 +12,22 @@
         <EmptyState :title="t('dashboard.noUsageRecords')" :description="t('dashboard.startUsingApi')" />
       </div>
       <div v-else class="space-y-3">
-        <div v-for="log in data" :key="log.id" class="flex items-center justify-between rounded-xl bg-gray-50 p-4 transition-colors hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800">
+        <div v-for="log in data" :key="log.id" class="flex items-center justify-between rounded-mica-lg bg-black/[0.02] dark:bg-white/[0.03] p-4 transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.05]">
           <div class="flex items-center gap-4">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/30">
-              <Icon name="beaker" size="md" class="text-primary-600 dark:text-primary-400" />
+            <div class="flex h-10 w-10 items-center justify-center rounded-mica-lg bg-black/[0.04] dark:bg-white/[0.06]">
+              <Icon name="beaker" size="md" class="text-mica-text-primary dark:text-mica-text-primary-dark" />
             </div>
             <div>
-              <p class="text-sm font-medium text-gray-900 dark:text-white">{{ log.model }}</p>
-              <p class="text-xs text-gray-500 dark:text-dark-400">{{ formatDateTime(log.created_at) }}</p>
+              <p class="text-sm font-medium text-mica-text-primary dark:text-mica-text-primary-dark">{{ log.model }}</p>
+              <p class="text-xs text-mica-text-secondary dark:text-mica-text-secondary-dark">{{ formatDateTime(log.created_at) }}</p>
             </div>
           </div>
           <div class="text-right">
             <p class="text-sm font-semibold">
-              <span class="text-green-600 dark:text-green-400" :title="t('dashboard.actual')">${{ formatCost(log.actual_cost) }}</span>
-              <span class="font-normal text-gray-400 dark:text-gray-500" :title="t('dashboard.standard')"> / ${{ formatCost(log.total_cost) }}</span>
+              <span class="text-status-green dark:text-status-green-dark" :title="t('dashboard.actual')">${{ formatCost(log.actual_cost) }}</span>
+              <span class="font-normal text-mica-text-tertiary dark:text-mica-text-tertiary-dark" :title="t('dashboard.standard')"> / ${{ formatCost(log.total_cost) }}</span>
             </p>
-            <p class="text-xs text-gray-500 dark:text-dark-400">{{ (log.input_tokens + log.output_tokens).toLocaleString() }} tokens</p>
+            <p class="text-xs text-mica-text-secondary dark:text-mica-text-secondary-dark">{{ (log.input_tokens + log.output_tokens).toLocaleString() }} tokens</p>
           </div>
         </div>
 
