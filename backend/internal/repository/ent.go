@@ -85,11 +85,11 @@ func InitEnt(cfg *config.Config) (*ent.Client, *sql.DB, error) {
 	if cfg.RunMode == config.RunModeSimple {
 		seedCtx, seedCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer seedCancel()
-		if err := ensureSimpleModeDefaultGroups(seedCtx, client); err != nil {
+		if err := EnsureSimpleModeDefaultGroups(seedCtx, client); err != nil {
 			_ = client.Close()
 			return nil, nil, err
 		}
-		if err := ensureSimpleModeAdminConcurrency(seedCtx, client); err != nil {
+		if err := EnsureSimpleModeAdminConcurrency(seedCtx, client); err != nil {
 			_ = client.Close()
 			return nil, nil, err
 		}

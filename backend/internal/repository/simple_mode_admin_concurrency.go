@@ -17,7 +17,7 @@ const (
 	simpleModeTargetAdminConcurrency     = 30
 )
 
-func ensureSimpleModeAdminConcurrency(ctx context.Context, client *dbent.Client) error {
+func EnsureSimpleModeAdminConcurrency(ctx context.Context, client *dbent.Client) error {
 	if client == nil {
 		return fmt.Errorf("nil ent client")
 	}
