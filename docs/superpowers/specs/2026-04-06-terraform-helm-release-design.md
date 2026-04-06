@@ -202,11 +202,15 @@ New outputs (all sensitive where applicable):
 
 ### Changes to `production/versions.tf`
 
-Add `random` provider:
+Add `random` and `null` providers:
 ```hcl
 random = {
   source  = "hashicorp/random"
   version = "~> 3.6"
+}
+null = {
+  source  = "hashicorp/null"
+  version = "~> 3.2"
 }
 ```
 
@@ -253,4 +257,25 @@ terraform output -raw grafana_admin_password
 
 **First-time apply ordering:** Terraform handles this via `depends_on`. The kubernetes module (namespaces, ingress, cert-manager) must complete before helm_release resources attempt deployment. The database module has no dependency on kubernetes and can provision in parallel with it.
 
-**Helm chart dependency updates:** When subchart versions change (e.g., Bitnami PostgreSQL), run `helm dependency update` on the chart before `terraform apply`. The `helm_release` resource deploys whatever is in the local chart directory including `charts/` tarballs.
+**Helm chart dependency resolution:** Both modules use a `null_resource` with a `local-exec` provisioner to run `helm dependency build` on the local chart directory before the `helm_release` resource. This ensures subchart tarballs (`charts/*.tgz`) are always present, even from a clean git clone (the monitoring chart has no committed tarballs, and `.gitignore` excludes `**/charts/*.tgz`).
+
+```hcl
+resource "null_resource" "helm_deps" {
+  triggers = {
+    chart_lock = filemd5("${var.chart_path}/Chart.lock")
+  }
+
+  provisioner "local-exec" {
+    command = "helm dependency build ${var.chart_path}"
+  }
+}
+
+resource "helm_release" "sub2api" {
+  # ...
+  depends_on = [null_resource.helm_deps]
+}
+```
+
+The `triggers` block uses `Chart.lock` checksum so the provisioner only re-runs when dependency versions actually change, not on every apply. Requires `helm` CLI on the machine running Terraform (already a practical requirement for the Helm provider).
+
+**Note:** The monitoring chart is currently missing `Chart.lock`. It must be generated (`helm dependency update deploy/helm/monitoring/`) and committed before this workflow works. This is a one-time fix.
