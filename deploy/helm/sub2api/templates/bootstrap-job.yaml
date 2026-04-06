@@ -1,14 +1,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "sub2api.fullname" . }}-bootstrap
+  name: {{ include "sub2api.bootstrapJobName" . }}
   labels:
     {{- include "sub2api.labels" . | nindent 4 }}
     app.kubernetes.io/component: bootstrap
-  annotations:
-    "helm.sh/hook": pre-install,pre-upgrade
-    "helm.sh/hook-weight": "0"
-    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: {{ .Values.bootstrap.backoffLimit }}
   ttlSecondsAfterFinished: {{ .Values.bootstrap.ttlSecondsAfterFinished }}
@@ -52,5 +48,9 @@ spec:
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
