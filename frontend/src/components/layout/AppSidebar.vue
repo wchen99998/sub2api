@@ -1,20 +1,20 @@
 <template>
   <aside
-    class="sidebar"
+    class="fixed inset-y-0 left-0 z-40 flex flex-col border-r border-black/[0.06] bg-white/42 backdrop-blur-[32px] transition-all duration-300 dark:border-white/[0.08] dark:bg-white/[0.03]"
     :class="[
-      sidebarCollapsed ? 'w-[72px]' : 'w-64',
+      sidebarCollapsed ? 'w-[64px]' : 'w-[220px]',
       { '-translate-x-full lg:translate-x-0': !mobileOpen }
     ]"
   >
     <!-- Logo/Brand -->
-    <div class="sidebar-header">
+    <div class="flex h-[56px] items-center gap-2 border-b border-black/[0.06] px-4 dark:border-white/[0.08]">
       <!-- Custom Logo or Default Logo -->
-      <div class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow">
+      <div class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-[7px]">
         <img v-if="settingsLoaded" :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
       </div>
       <transition name="fade">
         <div v-if="!sidebarCollapsed" class="flex flex-col">
-          <span class="text-lg font-bold text-gray-900 dark:text-white">
+          <span class="text-sm font-semibold text-mica-text-primary dark:text-mica-text-primary-dark">
             {{ siteName }}
           </span>
           <!-- Version Badge -->
@@ -24,7 +24,7 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="sidebar-nav scrollbar-hide">
+    <nav class="scrollbar-hide flex-1 overflow-y-auto px-2 py-4">
       <!-- Admin View: Admin menu first, then personal menu -->
       <template v-if="isAdmin">
         <!-- Admin Section -->
@@ -33,8 +33,8 @@
             v-for="item in adminNavItems"
             :key="item.path"
             :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path) }"
+            class="flex items-center gap-2 rounded-mica px-2.5 py-[7px] text-mica-subhead text-mica-text-secondary dark:text-mica-text-secondary-dark transition-colors duration-150 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:text-mica-text-primary dark:hover:text-mica-text-primary-dark mb-1"
+            :class="{ '!bg-black/[0.05] dark:!bg-white/[0.05] !text-mica-text-primary dark:!text-mica-text-primary-dark !font-medium': isActive(item.path) }"
             :title="sidebarCollapsed ? item.label : undefined"
             :id="
               item.path === '/admin/accounts'
@@ -57,17 +57,17 @@
 
         <!-- Personal Section for Admin (hidden in simple mode) -->
         <div v-if="!authStore.isSimpleMode" class="sidebar-section">
-          <div v-if="!sidebarCollapsed" class="sidebar-section-title">
+          <div v-if="!sidebarCollapsed" class="mb-2 px-2.5 text-mica-caption uppercase tracking-[0.24em] text-mica-text-tertiary dark:text-mica-text-tertiary-dark">
             {{ t('nav.myAccount') }}
           </div>
-          <div v-else class="mx-3 my-3 h-px bg-gray-200 dark:bg-dark-700"></div>
+          <div v-else class="mx-2 my-2 h-px bg-black/[0.06] dark:bg-white/[0.08]"></div>
 
           <router-link
             v-for="item in personalNavItems"
             :key="item.path"
             :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path) }"
+            class="flex items-center gap-2 rounded-mica px-2.5 py-[7px] text-mica-subhead text-mica-text-secondary dark:text-mica-text-secondary-dark transition-colors duration-150 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:text-mica-text-primary dark:hover:text-mica-text-primary-dark mb-1"
+            :class="{ '!bg-black/[0.05] dark:!bg-white/[0.05] !text-mica-text-primary dark:!text-mica-text-primary-dark !font-medium': isActive(item.path) }"
             :title="sidebarCollapsed ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
@@ -88,8 +88,8 @@
             v-for="item in userNavItems"
             :key="item.path"
             :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path) }"
+            class="flex items-center gap-2 rounded-mica px-2.5 py-[7px] text-mica-subhead text-mica-text-secondary dark:text-mica-text-secondary-dark transition-colors duration-150 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:text-mica-text-primary dark:hover:text-mica-text-primary-dark mb-1"
+            :class="{ '!bg-black/[0.05] dark:!bg-white/[0.05] !text-mica-text-primary dark:!text-mica-text-primary-dark !font-medium': isActive(item.path) }"
             :title="sidebarCollapsed ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
@@ -105,11 +105,11 @@
     </nav>
 
     <!-- Bottom Section -->
-    <div class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
+    <div class="mt-auto border-t border-black/[0.06] p-2 dark:border-white/[0.08]">
       <!-- Theme Toggle -->
       <button
         @click="toggleTheme"
-        class="sidebar-link mb-2 w-full"
+        class="flex items-center gap-2 rounded-mica px-2.5 py-[7px] text-mica-subhead text-mica-text-secondary dark:text-mica-text-secondary-dark transition-colors duration-150 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:text-mica-text-primary dark:hover:text-mica-text-primary-dark mb-2 w-full"
         :title="sidebarCollapsed ? (isDark ? t('nav.lightMode') : t('nav.darkMode')) : undefined"
       >
         <SunIcon v-if="isDark" class="h-5 w-5 flex-shrink-0 text-amber-500" />
@@ -124,7 +124,7 @@
       <!-- Collapse Button -->
       <button
         @click="toggleSidebar"
-        class="sidebar-link w-full"
+        class="flex items-center gap-2 rounded-mica px-2.5 py-[7px] text-mica-subhead text-mica-text-secondary dark:text-mica-text-secondary-dark transition-colors duration-150 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:text-mica-text-primary dark:hover:text-mica-text-primary-dark w-full"
         :title="sidebarCollapsed ? t('nav.expand') : t('nav.collapse')"
       >
         <ChevronDoubleLeftIcon v-if="!sidebarCollapsed" class="h-5 w-5 flex-shrink-0" />

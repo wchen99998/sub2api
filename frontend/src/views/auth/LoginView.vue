@@ -3,10 +3,10 @@
     <div class="space-y-6">
       <!-- Title -->
       <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+        <h2 class="text-mica-title1 text-mica-text-primary dark:text-mica-text-primary-dark">
           {{ t('auth.welcomeBack') }}
         </h2>
-        <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
+        <p class="mt-2 text-mica-subhead text-mica-text-secondary dark:text-mica-text-secondary-dark">
           {{ t('auth.signInToAccount') }}
         </p>
       </div>
@@ -23,7 +23,7 @@
           </label>
           <div class="relative">
             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="mail" size="md" class="text-gray-400 dark:text-dark-500" />
+              <Icon name="mail" size="md" class="text-mica-text-tertiary dark:text-mica-text-tertiary-dark" />
             </div>
             <input
               id="email"
@@ -50,7 +50,7 @@
           </label>
           <div class="relative">
             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="lock" size="md" class="text-gray-400 dark:text-dark-500" />
+              <Icon name="lock" size="md" class="text-mica-text-tertiary dark:text-mica-text-tertiary-dark" />
             </div>
             <input
               id="password"
@@ -66,7 +66,7 @@
             <button
               type="button"
               @click="showPassword = !showPassword"
-              class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-dark-300"
+              class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-mica-text-tertiary transition-colors hover:text-mica-text-primary dark:hover:text-mica-text-primary-dark"
             >
               <Icon v-if="showPassword" name="eyeOff" size="md" />
               <Icon v-else name="eye" size="md" />
@@ -80,7 +80,7 @@
             <router-link
               v-if="passwordResetEnabled && !backendModeEnabled"
               to="/forgot-password"
-              class="text-sm font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+              class="text-sm font-medium text-status-blue dark:text-status-blue-dark hover:underline"
             >
               {{ t('auth.forgotPassword') }}
             </router-link>
@@ -105,13 +105,13 @@
         <transition name="fade">
           <div
             v-if="errorMessage"
-            class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-900/20"
+            class="rounded-mica-lg border border-status-red/20 bg-status-red/[0.06] p-4 dark:border-status-red-dark/20 dark:bg-status-red-dark/[0.06]"
           >
             <div class="flex items-start gap-3">
               <div class="flex-shrink-0">
-                <Icon name="exclamationCircle" size="md" class="text-red-500" />
+                <Icon name="exclamationCircle" size="md" class="text-status-red dark:text-status-red-dark" />
               </div>
-              <p class="text-sm text-red-700 dark:text-red-400">
+              <p class="text-sm text-status-red dark:text-status-red-dark">
                 {{ errorMessage }}
               </p>
             </div>
@@ -152,11 +152,11 @@
 
     <!-- Footer -->
     <template v-if="!backendModeEnabled" #footer>
-      <p class="text-gray-500 dark:text-dark-400">
+      <p class="text-mica-text-secondary dark:text-mica-text-secondary-dark">
         {{ t('auth.dontHaveAccount') }}
         <router-link
           to="/register"
-          class="font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+          class="font-medium text-status-blue dark:text-status-blue-dark hover:underline"
         >
           {{ t('auth.signUp') }}
         </router-link>
