@@ -1,14 +1,13 @@
 # =============================================================================
-# Sub2API Server — Multi-Stage Dockerfile
+# Sub2API API Server — Multi-Stage Dockerfile
 # =============================================================================
-# Builds the server binary with embedded frontend assets.
-# Produces a minimal image with pg_dump/psql for backup support.
+# Builds the API server binary with embedded frontend assets.
+# Produces a minimal runtime image.
 # =============================================================================
 
 ARG NODE_IMAGE=node:24-alpine
 ARG GOLANG_IMAGE=golang:1.26.1-alpine
 ARG ALPINE_IMAGE=alpine:3.21
-ARG POSTGRES_IMAGE=postgres:18-alpine
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
 
@@ -53,50 +52,35 @@ COPY backend/ ./
 COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
 
 RUN VERSION_VALUE="${VERSION}" && \
-    if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(tr -d '\r\n' < ./cmd/server/VERSION)"; fi && \
+    if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(tr -d '\r\n' < ./cmd/api/VERSION)"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
     CGO_ENABLED=0 GOOS=linux go build \
     -tags embed \
     -ldflags="-s -w -X main.Version=${VERSION_VALUE} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=release" \
     -trimpath \
-    -o /app/sub2api \
-    ./cmd/server
+    -o /app/sub2api-api \
+    ./cmd/api
 
 # -----------------------------------------------------------------------------
-# Stage 3: PostgreSQL Client
-# -----------------------------------------------------------------------------
-FROM ${POSTGRES_IMAGE} AS pg-client
-
-# -----------------------------------------------------------------------------
-# Stage 4: Final Runtime Image
+# Stage 3: Final Runtime Image
 # -----------------------------------------------------------------------------
 FROM ${ALPINE_IMAGE}
 
 LABEL maintainer="Wccccc <github.com/wchen99998>"
-LABEL description="Sub2API Server - AI API Gateway Platform"
+LABEL description="Sub2API API Server - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/wchen99998/sub2api"
 
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
-    libpq \
-    zstd-libs \
-    lz4-libs \
-    krb5-libs \
-    libldap \
-    libedit \
     && rm -rf /var/cache/apk/*
-
-COPY --from=pg-client /usr/local/bin/pg_dump /usr/local/bin/pg_dump
-COPY --from=pg-client /usr/local/bin/psql /usr/local/bin/psql
-COPY --from=pg-client /usr/local/lib/libpq.so.5* /usr/local/lib/
 
 RUN addgroup -g 1000 sub2api && \
     adduser -u 1000 -G sub2api -s /bin/sh -D sub2api
 
 WORKDIR /app
 
-COPY --from=backend-builder --chown=sub2api:sub2api /app/sub2api /app/sub2api
+COPY --from=backend-builder --chown=sub2api:sub2api /app/sub2api-api /app/sub2api-api
 COPY --from=backend-builder --chown=sub2api:sub2api /app/backend/resources /app/resources
 
 USER sub2api
@@ -104,6 +88,6 @@ USER sub2api
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget -q -T 5 -O /dev/null http://localhost:${SERVER_PORT:-8080}/health || exit 1
+    CMD wget -q -T 5 -O /dev/null http://localhost:${SERVER_PORT:-8080}/readyz || exit 1
 
-ENTRYPOINT ["/app/sub2api"]
+ENTRYPOINT ["/app/sub2api-api"]
