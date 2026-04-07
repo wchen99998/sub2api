@@ -152,8 +152,8 @@ For the default deployment path, keep PostgreSQL and Redis in-cluster and instal
 helm upgrade --install sub2api deploy/helm/sub2api \
   -n sub2api \
   --create-namespace \
-  --set image.repository=ghcr.io/wchen99998/robust2api \
-  --set image.tag=0.1.2 \
+  --set image.server.tag=0.1.8 \
+  --set image.bootstrap.tag=0.1.8 \
   --set replicaCount=1 \
   --set ingress.host=api-sub2api.do-prod.yourdomain.com \
   --set ingress.tls.enabled=true \
@@ -208,7 +208,8 @@ Use Helm for all app upgrades:
 helm upgrade sub2api deploy/helm/sub2api \
   -n sub2api \
   --reuse-values \
-  --set image.tag=<new-version>
+  --set image.server.tag=<new-version> \
+  --set image.bootstrap.tag=<new-version>
 ```
 
 ### Roll back Sub2API
